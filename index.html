@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AAC Staff Portal</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="auth-config.js"></script>
+
+    <style>
+        :root {
+            --primary: #3ecf8e;
+            --primary-hover: #34b27b;
+            --bg: #f0f2f5;
+            --text: #1c1c1c;
+            --admin: #6366f1;
+            --activity: #f59e0b;
+            --grey: #94a3b8;
+            --danger: #ef4444;
+        }
+
+        body {
+            font-family: -apple-system, system-ui, sans-serif;
+            background: var(--bg);
+            display: flex;
+            justify-content: center;
+            padding: 15px;
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 500px;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+
+        h2 { margin-top: 0; text-align: center; font-size: 1.6rem; }
+        h3 { margin-top: 0; font-size: 1.4rem; }
+
+        label { font-size: 0.85rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-top: 10px; margin-bottom: 4px; }
+
+        input, select {
+            width: 100%;
+            padding: 14px;
+            margin: 4px 0 14px 0;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 16px;
+            background: #fff;
+        }
+
+        .password-wrapper { position: relative; width: 100%; }
+        .toggle-password { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer; font-size: 1.2rem; color: #64748b; user-select: none; z-index: 10; }
+
+        button {
+            width: 100%;
+            padding: 16px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 1.1rem;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: opacity 0.2s;
+        }
+        button:disabled { background: var(--grey); cursor: not-allowed; }
+        button:active { opacity: 0.85; }
+
+        .secondary-btn { background: #f1f5f9; color: #475569; font-size: 0.95rem; padding: 12px; }
+
+        /* ── Tab nav ── */
+        .tab-nav { display: flex; gap: 8px; margin-bottom: 20px; }
+        .tab-nav button { margin-top: 0; flex: 1; font-size: 0.85rem; padding: 11px 6px; color: white; }
+        #search-tab-btn  { background: var(--grey); }
+        #search-tab-btn.active  { background: var(--primary); }
+        #activity-tab-btn { background: var(--grey); }
+        #activity-tab-btn.active { background: var(--activity); }
+        #admin-tab-btn   { background: var(--grey); }
+        #admin-tab-btn.active   { background: var(--admin); }
+
+        /* ── Member search ── */
+        .result-item { background: #f8fafc; padding: 20px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #e2e8f0; }
+        .member-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+        .member-name { font-size: 1.3rem; font-weight: bold; color: #1e293b; }
+        .member-details { font-size: 1.1rem; color: #475569; }
+        .result-address { color: #64748b; font-size: 1rem; margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0; }
+        .nok-btn { width: auto; padding: 10px 20px; font-size: 1rem; background: #3b82f6; margin-top: 0; }
+        .nok-container { margin-top: 15px; padding: 15px; background: #ffffff; border: 1px dashed #3b82f6; border-radius: 8px; }
+
+        /* ── Activity reports ── */
+        .data-badge { display: inline-block; background: #e2e8f0; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; color: #475569; margin-bottom: 16px; width: 100%; text-align: center; box-sizing: border-box; }
+        .month-row { display: flex; gap: 10px; }
+        .month-row > div { flex: 1; }
+        .result-box { background: #f8fafc; border-radius: 8px; padding: 15px; overflow-x: auto; border: 1px solid #e2e8f0; margin-top: 16px; }
+        .big-number { font-size: 2.5rem; font-weight: bold; color: #4338ca; text-align: center; display: block; padding: 10px; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; background: white; }
+        th { background: #f1f5f9; text-align: left; padding: 10px; border-bottom: 2px solid #cbd5e1; white-space: nowrap; }
+        td { padding: 10px; border-bottom: 1px solid #e2e8f0; }
+
+        /* ── ETL / Admin ── */
+        .drop-zone { border: 2px dashed var(--primary); padding: 30px; text-align: center; border-radius: 10px; cursor: pointer; background: #f9fffb; transition: border 0.2s, background 0.2s; }
+        .drop-zone.selected { border: 2px solid var(--primary); background: #dcfce7; }
+
+        /* ── Shared ── */
+        .empty-state { text-align: center; padding: 30px; color: #64748b; font-size: 1.1rem; }
+        .hidden { display: none; }
+        .message { padding: 15px; border-radius: 8px; text-align: center; margin-top: 10px; font-weight: bold; }
+        .error   { background: #fee2e2; color: #ef4444; }
+        .success { background: #dcfce7; color: #16a34a; }
+        .logout-btn { background: var(--danger) !important; color: white; margin-top: 30px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2 id="title">AAC Staff Portal</h2>
+    <div id="msg" class="message hidden"></div>
+
+    <!-- ── LOGIN ── -->
+    <div id="login-section">
+        <input type="email" id="email" placeholder="Email">
+        <div class="password-wrapper">
+            <input type="password" id="password" placeholder="Password">
+            <span class="toggle-password" onclick="togglePasswordVisibility('password')">👁️</span>
+        </div>
+        <button onclick="signIn()">Sign In</button>
+        <button class="secondary-btn" onclick="showView('reset-section')">Forgot Password?</button>
+    </div>
+
+    <!-- ── FORGOT PASSWORD ── -->
+    <div id="reset-section" class="hidden">
+        <p style="text-align:center;">Enter email for reset link.</p>
+        <input type="email" id="reset-email" placeholder="Email Address">
+        <button onclick="sendResetEmail()">Send Reset Link</button>
+        <button class="secondary-btn" onclick="showView('login-section')">Back to Login</button>
+    </div>
+
+    <!-- ── PASSWORD UPDATE (recovery flow) ── -->
+    <div id="password-update-section" class="hidden">
+        <h3 style="text-align:center;">Set New Password</h3>
+        <p style="text-align:center; font-size:0.9rem; color:var(--grey);">Please enter a new password for your account.</p>
+        <input type="password" id="new-password" placeholder="New Password (min 6 chars)">
+        <button onclick="updatePassword()">Update &amp; Log In</button>
+    </div>
+
+    <!-- ── MAIN APP ── -->
+    <div id="main-app" class="hidden">
+
+        <!-- Tab navigation -->
+        <div id="nav-tabs" class="tab-nav">
+            <button id="search-tab-btn"   class="active"  onclick="switchTab('search-section')">🔍 Search</button>
+            <button id="activity-tab-btn"                 onclick="switchTab('activity-section')">📊 Reports</button>
+            <button id="admin-tab-btn"    class="hidden"  onclick="switchTab('etl-section')">⚙️ Update</button>
+        </div>
+
+        <!-- ── TAB: Member Search ── -->
+        <div id="search-section">
+            <h3>Member Search</h3>
+            <input type="text" id="search-input" placeholder="Enter Name, NRIC or Phone#" onkeyup="handleKeyPress(event)">
+            <button onclick="handleSearch()">Search</button>
+            <div id="search-results" style="margin-top:20px;"></div>
+        </div>
+
+        <!-- ── TAB: Activity Reports ── -->
+        <div id="activity-section" class="hidden">
+            <h3>Activity Reports</h3>
+            <div id="data-coverage" class="data-badge">Select a report and date range</div>
+
+            <label>Report Type</label>
+            <select id="report-select">
+                <option value="" disabled selected>-- Choose a report --</option>
+            </select>
+
+            <div class="month-row">
+                <div>
+                    <label>Start Month</label>
+                    <input type="month" id="start-month">
+                </div>
+                <div>
+                    <label>End Month</label>
+                    <input type="month" id="end-month">
+                </div>
+            </div>
+
+            <button id="run-btn" onclick="runReport()">Execute Query</button>
+
+            <div id="result-container" class="hidden">
+                <div id="result-box" class="result-box"></div>
+            </div>
+        </div>
+
+        <!-- ── TAB: Admin / ETL ── -->
+        <div id="etl-section" class="hidden">
+            <h3>📂 Database Sync</h3>
+            <p style="color:#64748b; font-size:0.95rem; margin:0 0 14px;">Select one or both files, then tap <strong>Upload &amp; Sync</strong>.</p>
+
+            <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:14px;">
+                <div>
+                    <div style="font-size:0.85rem; font-weight:600; color:#475569; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.04em;">Member Details</div>
+                    <div class="drop-zone" onclick="document.getElementById('csvMembership').click()">
+                        <span id="membershipFileDisplay">Tap to select AACMemberDetails CSV</span>
+                        <input type="file" id="csvMembership" class="hidden" accept=".csv" onchange="updateDropLabel('csvMembership','membershipFileDisplay')">
+                    </div>
+                </div>
+                <div>
+                    <div style="font-size:0.85rem; font-weight:600; color:#475569; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.04em;">Family Members</div>
+                    <div class="drop-zone" onclick="document.getElementById('csvFamily').click()">
+                        <span id="familyFileDisplay">Tap to select FamilyMembersListing CSV</span>
+                        <input type="file" id="csvFamily" class="hidden" accept=".csv" onchange="updateDropLabel('csvFamily','familyFileDisplay')">
+                    </div>
+                </div>
+            </div>
+
+            <button id="importBtn" onclick="runRPCImportBoth()" style="background:#16a34a;">Upload &amp; Sync</button>
+        </div>
+
+        <button onclick="signOut()" class="logout-btn">Sign Out</button>
+    </div><!-- /main-app -->
+</div><!-- /container -->
+
+<script>
+    // ─────────────────────────────────────────────
+    //  STATE
+    // ─────────────────────────────────────────────
+    let isRecovering = false;
+
+    // ─────────────────────────────────────────────
+    //  UI HELPERS
+    // ─────────────────────────────────────────────
+    function showMsg(text, type) {
+        const el = document.getElementById('msg');
+        el.innerText = text;
+        el.className = `message ${type}`;
+        el.classList.remove('hidden');
+        setTimeout(() => el.classList.add('hidden'), 5000);
+    }
+
+    /** Hide all top-level auth + content sections, then show the one requested. */
+    function showView(sectionId) {
+        ['login-section','reset-section','password-update-section',
+         'search-section','activity-section','etl-section']
+            .forEach(id => { const el = document.getElementById(id); if (el) el.classList.add('hidden'); });
+        document.getElementById(sectionId).classList.remove('hidden');
+    }
+
+    function switchTab(viewId) {
+        ['search-section','activity-section','etl-section']
+            .forEach(id => { const el = document.getElementById(id); if (el) el.classList.add('hidden'); });
+        document.getElementById(viewId).classList.remove('hidden');
+
+        document.querySelectorAll('.tab-nav button').forEach(b => b.classList.remove('active'));
+        const btnMap = { 'search-section': 'search-tab-btn', 'activity-section': 'activity-tab-btn', 'etl-section': 'admin-tab-btn' };
+        document.getElementById(btnMap[viewId]).classList.add('active');
+    }
+
+    function handleKeyPress(event) { if (event.key === "Enter") handleSearch(); }
+
+    function updateDropLabel(inputId, labelId) {
+        const f = document.getElementById(inputId).files[0];
+        const fallback = labelId === 'membershipFileDisplay' ? 'Tap to select AACMemberDetails CSV' : 'Tap to select FamilyMembersListing CSV';
+        document.getElementById(labelId).innerText = f ? f.name : fallback;
+        document.getElementById(inputId).closest('.drop-zone').classList.toggle('selected', !!f);
+    }
+
+    function togglePasswordVisibility(inputId) {
+        const input = document.getElementById(inputId);
+        const icon  = input.nextElementSibling;
+        input.type  = input.type === "password" ? "text" : "password";
+        icon.innerText = input.type === "password" ? "👁️" : "🔒";
+    }
+
+    // ─────────────────────────────────────────────
+    //  AUTH  (supabaseClient comes from auth-config.js)
+    // ─────────────────────────────────────────────
+    async function signIn() {
+        const { error } = await supabaseClient.auth.signInWithPassword({
+            email:    document.getElementById('email').value,
+            password: document.getElementById('password').value
+        });
+        if (error) return showMsg(error.message, 'error');
+        window.location.reload();
+    }
+
+    async function sendResetEmail() {
+        const email = document.getElementById('reset-email').value;
+        if (!email) return showMsg("Please enter your email", "error");
+        const redirectUrl = window.location.origin + window.location.pathname;
+        const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo: redirectUrl });
+        if (error) return showMsg(error.message, "error");
+        showMsg("Reset link sent to your email!", "success");
+    }
+
+    async function updatePassword() {
+        const newPassword = document.getElementById('new-password').value;
+        if (newPassword.length < 6) return showMsg("Min 6 characters required", "error");
+        const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
+        if (error) return showMsg(error.message, "error");
+        alert("Password updated successfully!");
+        await signOut();
+    }
+
+    // ─────────────────────────────────────────────
+    //  MEMBER SEARCH
+    // ─────────────────────────────────────────────
+    async function handleSearch() {
+        const term = document.getElementById('search-input').value.trim();
+        const resultsDiv = document.getElementById('search-results');
+        if (term.length < 2) return;
+        resultsDiv.innerHTML = "<p>Searching...</p>";
+        const { data, error } = await supabaseClient.rpc('search_members_generic', { search_term: term });
+        if (error) { resultsDiv.innerHTML = `<div class="message error">${error.message}</div>`; return; }
+        if (!data || data.length === 0) { resultsDiv.innerHTML = `<div class="empty-state"><p>🚫 No results found</p></div>`; return; }
+        resultsDiv.innerHTML = data.map(member => `
+            <div class="result-item">
+                <div class="member-header">
+                    <div>
+                        <div class="member-name">${member.fullnamenative}${member.toaddressas ? ` (${member.toaddressas})` : ''}</div>
+                        ${member.currentmembershipstatus === 'Terminated' ? `<span style="color:#ef4444;font-weight:600;font-size:0.9rem;">Terminated</span>` : ''}
+                    </div>
+                    <button class="nok-btn" onclick="fetchNOK('${member.registrationdocumentnumber}')">NOK</button>
+                </div>
+                <div class="member-details">
+                    <strong>Gender:</strong> ${member.gender || 'Not Specified'}<br>
+                    <strong>NRIC:</strong> ${member.registrationdocumentnumber}<br>
+                    <strong>Tel:</strong> ${member.phone || 'N/A'}
+                </div>
+                <div class="result-address"><strong>Address:</strong><br>${member.fulladdress || 'N/A'}</div>
+                <div id="nok-list-${member.registrationdocumentnumber}" class="nok-container hidden"></div>
+            </div>`).join('');
+    }
+
+    async function fetchNOK(regNo) {
+        const container = document.getElementById(`nok-list-${regNo}`);
+        if (!container.classList.contains('hidden')) { container.classList.add('hidden'); return; }
+        container.classList.remove('hidden');
+        container.innerHTML = "Loading NOK...";
+        const { data } = await supabaseClient.rpc('get_member_nok', { reg_no: regNo });
+        if (!data || data.length === 0) { container.innerHTML = "<p>No NOK found.</p>"; return; }
+        container.innerHTML = `<div style="font-weight:bold;color:#3b82f6;">Family Contacts:</div>` +
+            data.map(nok => `
+                <div style="font-size:1rem;padding:8px 0;border-bottom:1px solid #eee;">
+                    <strong>${nok.familymembername}</strong> (${nok.relationshiptofollowiltcmasterlist || 'N/A'})<br>
+                    Mobile: ${nok.mobilephone || 'N/A'}
+                </div>`).join('');
+    }
+
+    // ─────────────────────────────────────────────
+    //  ACTIVITY REPORTS
+    // ─────────────────────────────────────────────
+    async function loadReports() {
+        try {
+            const response = await fetch('reports.json');
+            const data = await response.json();
+            const select = document.getElementById('report-select');
+            const reports = data.reports || data;
+            reports.forEach(report => {
+                const opt = document.createElement('option');
+                opt.value    = report.id;
+                opt.innerText = report.name;
+                select.appendChild(opt);
+            });
+        } catch (err) {
+            console.error("Failed to load reports.json:", err);
+            showMsg("Could not load report list.", "error");
+        }
+    }
+
+    async function runReport() {
+        const btn       = document.getElementById('run-btn');
+        const reportRPC = document.getElementById('report-select').value;
+        const startM    = document.getElementById('start-month').value;
+        const endM      = document.getElementById('end-month').value;
+        const resultBox = document.getElementById('result-box');
+        const resultContainer = document.getElementById('result-container');
+
+        if (!reportRPC || !startM || !endM) {
+            showMsg("Please select a report and date range", "error");
+            return;
+        }
+
+        const start_date = `${startM}-01`;
+        const endParts   = endM.split('-');
+        const lastDay    = new Date(endParts[0], endParts[1], 0).getDate();
+        const end_date   = `${endM}-${lastDay}`;
+
+        btn.innerText    = "Calculating...";
+        btn.disabled     = true;
+        resultContainer.classList.remove('hidden');
+        resultBox.innerHTML = "Processing...";
+        document.getElementById('data-coverage').innerText = `${startM} → ${endM}`;
+
+        try {
+            const { data, error } = await supabaseClient.rpc(reportRPC, { start_date, end_date });
+            if (error) throw error;
+
+            if (Array.isArray(data)) {
+                if (data.length === 0) {
+                    resultBox.innerHTML = "<p style='text-align:center'>No records found.</p>";
+                } else {
+                    const headers = Object.keys(data[0]);
+                    let html = `<table><thead><tr>${headers.map(h => `<th>${h.replace(/_/g,' ').toUpperCase()}</th>`).join('')}</tr></thead><tbody>`;
+                    data.forEach(row => {
+                        html += `<tr>${headers.map(h => `<td>${row[h] ?? '-'}</td>`).join('')}</tr>`;
+                    });
+                    html += `</tbody></table>`;
+                    resultBox.innerHTML = html;
+                }
+            } else {
+                resultBox.innerHTML = `<span class="big-number">${data ?? 0}</span>`;
+            }
+        } catch (err) {
+            console.error(err);
+            showMsg(err.message, "error");
+            resultBox.innerHTML = "Error loading data.";
+        } finally {
+            btn.innerText = "Execute Query";
+            btn.disabled  = false;
+        }
+    }
+
+    // ─────────────────────────────────────────────
+    //  ADMIN – DATABASE SYNC
+    // ─────────────────────────────────────────────
+    const etlConfig = {
+        membership: {
+            rpc: 'import_and_merge_members',
+            mapping: {
+                'RegistrationDocumentNumber':        'registrationdocumentnumber',
+                'FullNameNative':                    'fullnamenative',
+                'ToAddressAs':                       'toaddressas',
+                'DateOfBirth':                       'dateofbirth',
+                'Gender':                            'gender',
+                'Phone':                             'phone',
+                'ResidesWithinServiceBoundaryStr':   'resideswithinserviceboundarystr',
+                'FullAddress':                       'fulladdress',
+                'CurrentMembershipStatus':           'currentmembershipstatus'
+            }
+        },
+        family: {
+            rpc: 'import_and_merge_family',
+            mapping: {
+                'Patient_NRIC_Fin_Passport_No___':                       'patientnricfinpassportno',
+                'Family_Member_Name__':                                   'familymembername',
+                'Relationship____To_follow_ILTC_Master_List_':           'relationshiptofollowiltcmasterlist',
+                'Home_Phone':                                            'homephone',
+                'Mobile_Phone':                                          'mobilephone'
+            }
+        }
+    };
+
+    function parseAndTransform(file, setup) {
+        return new Promise((resolve, reject) => {
+            Papa.parse(file, {
+                header: true, skipEmptyLines: true,
+                complete(results) {
+                    const transformed = results.data.map(row => {
+                        let r = {};
+                        for (let k in setup.mapping) {
+                            let v = row[k] || "";
+                            if (k === 'ResidesWithinServiceBoundaryStr') v = v.toLowerCase() === 'yes' ? 'true' : 'false';
+                            if (k === 'DateOfBirth' && v.includes('-')) {
+                                const d = new Date(v); if (!isNaN(d)) v = d.toISOString().split('T')[0];
+                            }
+                            r[setup.mapping[k]] = v;
+                        }
+                        return r;
+                    });
+                    resolve(transformed);
+                },
+                error: reject
+            });
+        });
+    }
+
+    async function runRPCImportBoth() {
+        const membershipFile = document.getElementById('csvMembership').files[0];
+        const familyFile     = document.getElementById('csvFamily').files[0];
+        if (!membershipFile && !familyFile) return showMsg("Please select at least one file.", "error");
+
+        document.getElementById('importBtn').disabled = true;
+        showMsg("Syncing with database...", "success");
+
+        try {
+            const results = [];
+            if (membershipFile) {
+                const data = await parseAndTransform(membershipFile, etlConfig.membership);
+                const { error } = await supabaseClient.rpc(etlConfig.membership.rpc, { import_data: data });
+                if (error) throw new Error(`Member Details: ${error.message}`);
+                results.push("Member Details ✓");
+            }
+            if (familyFile) {
+                const data = await parseAndTransform(familyFile, etlConfig.family);
+                const { error } = await supabaseClient.rpc(etlConfig.family.rpc, { import_data: data });
+                if (error) throw new Error(`Family Members: ${error.message}`);
+                results.push("Family Members ✓");
+            }
+            showMsg(`Sync Successful: ${results.join(", ")}`, "success");
+        } catch (e) {
+            showMsg(e.message, "error");
+        } finally {
+            document.getElementById('importBtn').disabled = false;
+        }
+    }
+
+    // ─────────────────────────────────────────────
+    //  INIT
+    // ─────────────────────────────────────────────
+    window.onload = async () => {
+        resetIdleTimer(); // from auth-config.js
+
+        supabaseClient.auth.onAuthStateChange((event) => {
+            if (event === "PASSWORD_RECOVERY") {
+                isRecovering = true;
+                showView('password-update-section');
+            }
+        });
+
+        const { data: { session } } = await supabaseClient.auth.getSession();
+
+        setTimeout(async () => {
+            if (isRecovering) return;
+
+            if (session) {
+                document.getElementById('login-section').classList.add('hidden');
+                document.getElementById('title').classList.add('hidden');
+                document.getElementById('main-app').classList.remove('hidden');
+                switchTab('search-section');
+                loadReports();
+
+                // Show admin tab for admin users
+                const { data: profile } = await supabaseClient
+                    .from('profiles').select('role').eq('id', session.user.id).single();
+                if (profile?.role === 'admin') {
+                    document.getElementById('admin-tab-btn').classList.remove('hidden');
+                }
+            } else {
+                showView('login-section');
+            }
+        }, 150);
+    };
+</script>
+</body>
+</html>
