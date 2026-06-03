@@ -1,0 +1,36 @@
+{
+  "reports": [
+    {
+      "id": "get_gui_session_count",
+      "name": "GUI Session Count"
+    },
+    {
+      "id": "get_gui_activity_breakdown",
+      "name": "GUI Activity List"
+    },
+    {
+      "id": "get_gui_unique_member_count_in_boundary",
+      "name": "GUI Unique Members (In Boundary, Age 60+)"
+    },
+    {
+      "id": "count_robust_members_activity",
+      "name": "Engaged Robust Seniors (In Boundary, Age 60+, CFS 1-3, 2+ Sessions)"
+    },
+    {
+      "id": "count_frail_members_activity",
+      "name": "Engaged Frail Seniors (In Boundary, Age 60+, CFS 4 & 5, 6+ Sessions)"
+    },
+    {
+      "id": "members_cfs_678_activity",
+      "name": "Engaged CFS 6~8 Seniors (In Boundary, Age 60+, CFS 6, 7 & 8, 2+ Sessions)"
+    },
+    {
+      "id": "list_active_seniors_without_cfs",
+      "name": "Active Seniors without CFS (In Boundary, Age 60+, No CFS, 1+ Sessions)"
+    },
+    {
+      "id": "get_all_cfs_breakdown",
+      "name": "Activity Session Count & CFS Averages (All members)"
+    }
+  ]
+}
