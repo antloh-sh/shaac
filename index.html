@@ -285,7 +285,6 @@
         setTimeout(() => el.classList.add('hidden'), 5000);
     }
 
-    /** Hide all top-level auth + content sections, then show the one requested. */
     function showView(sectionId) {
         ['login-section','reset-section','password-update-section',
          'search-section','activity-section','etl-section','activities-etl-section']
@@ -297,7 +296,6 @@
         ['search-section','activity-section','etl-section','activities-etl-section']
             .forEach(id => { const el = document.getElementById(id); if (el) el.classList.add('hidden'); });
         document.getElementById(viewId).classList.remove('hidden');
-
         document.querySelectorAll('.tab-nav button').forEach(b => b.classList.remove('active'));
         const btnMap = {
             'search-section':         'search-tab-btn',
@@ -325,7 +323,7 @@
     }
 
     // ─────────────────────────────────────────────
-    //  AUTH  (supabaseClient comes from auth-config.js)
+    //  AUTH
     // ─────────────────────────────────────────────
     async function signIn() {
         const { error } = await supabaseClient.auth.signInWithPassword({
@@ -389,7 +387,9 @@
         if (!container.classList.contains('hidden')) { container.classList.add('hidden'); return; }
         container.classList.remove('hidden');
         container.innerHTML = "Loading NOK...";
-        const { data } = await supabaseClient.rpc('get_member_nok', { reg_no: regNo });
+        const { data, error } = await supabaseClient.rpc('get_member_nok', { reg_no: regNo });
+        // FIX #9 surface NOK fetch errors rather than silently showing nothing
+        if (error) { container.innerHTML = `<p style="color:#ef4444;">Error: ${error.message}</p>`; return; }
         if (!data || data.length === 0) { container.innerHTML = "<p>No NOK found.</p>"; return; }
         container.innerHTML = `<div style="font-weight:bold;color:#3b82f6;">Family Contacts:</div>` +
             data.map(nok => `
@@ -405,18 +405,20 @@
     async function loadReports() {
         try {
             const response = await fetch('reports.json');
+            if (!response.ok) throw new Error(`HTTP ${response.status} loading reports.json`);
             const data = await response.json();
             const select = document.getElementById('report-select');
             const reports = data.reports || data;
+            if (!Array.isArray(reports) || reports.length === 0) throw new Error("reports.json is empty or malformed");
             reports.forEach(report => {
                 const opt = document.createElement('option');
-                opt.value    = report.id;
+                opt.value     = report.id;
                 opt.innerText = report.name;
                 select.appendChild(opt);
             });
         } catch (err) {
             console.error("Failed to load reports.json:", err);
-            showMsg("Could not load report list.", "error");
+            showMsg(`Could not load report list: ${err.message}`, "error");
         }
     }
 
@@ -430,6 +432,12 @@
 
         if (!reportRPC || !startM || !endM) {
             showMsg("Please select a report and date range", "error");
+            return;
+        }
+
+        // FIX #10: validate start <= end
+        if (startM > endM) {
+            showMsg("Start month cannot be after end month", "error");
             return;
         }
 
@@ -474,7 +482,7 @@
     }
 
     // ─────────────────────────────────────────────
-    //  ADMIN – DATABASE SYNC
+    //  ADMIN – MEMBERS DATABASE SYNC
     // ─────────────────────────────────────────────
     const etlConfig = {
         membership: {
@@ -494,11 +502,11 @@
         family: {
             rpc: 'import_and_merge_family',
             mapping: {
-                'Patient_NRIC_Fin_Passport_No___':                       'patientnricfinpassportno',
-                'Family_Member_Name__':                                   'familymembername',
-                'Relationship____To_follow_ILTC_Master_List_':           'relationshiptofollowiltcmasterlist',
-                'Home_Phone':                                            'homephone',
-                'Mobile_Phone':                                          'mobilephone'
+                'Patient_NRIC_Fin_Passport_No___':                     'patientnricfinpassportno',
+                'Family_Member_Name__':                                 'familymembername',
+                'Relationship____To_follow_ILTC_Master_List_':         'relationshiptofollowiltcmasterlist',
+                'Home_Phone':                                          'homephone',
+                'Mobile_Phone':                                        'mobilephone'
             }
         }
     };
@@ -508,6 +516,13 @@
             Papa.parse(file, {
                 header: true, skipEmptyLines: true,
                 complete(results) {
+                    // FIX #7: surface PapaParse row-level errors
+                    if (results.errors && results.errors.length > 0) {
+                        const sample = results.errors.slice(0, 3).map(e => `Row ${e.row}: ${e.message}`).join('; ');
+                        console.warn("CSV parse warnings:", results.errors);
+                        // Non-fatal: warn but continue with successfully parsed rows
+                        showMsg(`CSV parse warnings (${results.errors.length} rows affected): ${sample}`, "error");
+                    }
                     const transformed = results.data.map(row => {
                         let r = {};
                         for (let k in setup.mapping) {
@@ -539,12 +554,14 @@
             const results = [];
             if (membershipFile) {
                 const data = await parseAndTransform(membershipFile, etlConfig.membership);
+                if (data.length === 0) throw new Error("Member Details CSV appears empty after parsing.");
                 const { error } = await supabaseClient.rpc(etlConfig.membership.rpc, { import_data: data });
                 if (error) throw new Error(`Member Details: ${error.message}`);
                 results.push("Member Details ✓");
             }
             if (familyFile) {
                 const data = await parseAndTransform(familyFile, etlConfig.family);
+                if (data.length === 0) throw new Error("Family Members CSV appears empty after parsing.");
                 const { error } = await supabaseClient.rpc(etlConfig.family.rpc, { import_data: data });
                 if (error) throw new Error(`Family Members: ${error.message}`);
                 results.push("Family Members ✓");
@@ -568,18 +585,46 @@
         }
     }
 
-    function formatToISODate(str) {
-        if (!str) return "";
-        const match = str.match(/^(\d{1,2})-(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)-(\d{4})/i);
-        if (!match) return str;
-        const months = { jan:"01", feb:"02", mar:"03", apr:"04", may:"05", jun:"06", jul:"07", aug:"08", sep:"09", oct:"10", nov:"11", dec:"12" };
-        return `${match[3]}-${months[match[2].toLowerCase()]}-${match[1].padStart(2,"0")}`;
+    // FIX #1: explicit file extension validation
+    function validateFileExt(file, expectedExts) {
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (!expectedExts.includes(ext)) {
+            throw new Error(`"${file.name}" is not a valid file. Expected: .${expectedExts.join(' or .')}`);
+        }
     }
 
-    async function parseExcel(file, skipRows = 0) {
+    // FIX #2: date parsing — returns null on failure instead of original string
+    function formatToISODate(str) {
+        if (!str) return null;
+        // Handle DD-Mon-YYYY format
+        const match = str.match(/^(\d{1,2})-(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)-(\d{4})/i);
+        if (match) {
+            const months = { jan:"01", feb:"02", mar:"03", apr:"04", may:"05", jun:"06", jul:"07", aug:"08", sep:"09", oct:"10", nov:"11", dec:"12" };
+            return `${match[3]}-${months[match[2].toLowerCase()]}-${match[1].padStart(2,"0")}`;
+        }
+        // Handle Excel serial numbers (numeric strings)
+        if (/^\d+$/.test(String(str).trim())) {
+            const excelEpoch = new Date(1899, 11, 30);
+            const d = new Date(excelEpoch.getTime() + Number(str) * 86400000);
+            if (!isNaN(d)) return d.toISOString().split('T')[0];
+        }
+        // Handle YYYY-MM-DD or other JS-parseable formats
+        const d = new Date(str);
+        if (!isNaN(d)) return d.toISOString().split('T')[0];
+        return null; // unparseable
+    }
+
+    // FIX #4: sanitise age to integer or null
+    function sanitiseAge(val) {
+        if (val === null || val === undefined || String(val).trim() === '') return '';
+        const n = parseInt(String(val).trim(), 10);
+        return isNaN(n) ? '' : n;
+    }
+
+    async function parseExcel(file) {
         const data = await file.arrayBuffer();
         const wb = XLSX.read(data);
-        return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { range: skipRows });
+        return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { range: 0 });
     }
 
     async function parseCPR(file) {
@@ -588,22 +633,49 @@
         const sheet = wb.Sheets[wb.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
         const headerIndex = rows.findIndex(row => Array.isArray(row) && row.includes("UIN / NRIC"));
-        return XLSX.utils.sheet_to_json(sheet, { range: headerIndex !== -1 ? headerIndex : 9 });
+        if (headerIndex === -1) throw new Error('CPR file: could not find "UIN / NRIC" column. Is this the correct file?');
+        return XLSX.utils.sheet_to_json(sheet, { range: headerIndex });
     }
 
     function parseCSVFile(file) {
-        return new Promise(res => {
-            Papa.parse(file, { header: true, skipEmptyLines: true, complete: out => res(out.data) });
+        return new Promise((resolve, reject) => {
+            Papa.parse(file, {
+                header: true, skipEmptyLines: true,
+                complete(results) {
+                    // FIX #7: surface PapaParse row-level errors for attendance CSV
+                    if (results.errors && results.errors.length > 0) {
+                        console.warn("Attendance CSV parse warnings:", results.errors);
+                    }
+                    resolve({ data: results.data, errors: results.errors || [] });
+                },
+                error: reject
+            });
         });
     }
 
     function showEtlStatus(text, isError = false) {
         const el = document.getElementById('etl-status');
         el.innerText = text;
-        el.style.background  = isError ? '#fee2e2' : '#dcfce7';
-        el.style.color       = isError ? '#ef4444' : '#16a34a';
-        el.style.fontWeight  = 'bold';
+        el.style.background = isError ? '#fee2e2' : '#dcfce7';
+        el.style.color      = isError ? '#ef4444' : '#16a34a';
+        el.style.fontWeight = 'bold';
         el.classList.remove('hidden');
+    }
+
+    // FIX #6: batch upsert to avoid hitting Supabase 10MB body limit
+    const ETL_BATCH_SIZE = 500;
+    async function upsertInBatches(rows) {
+        let totalUpserted = 0;
+        for (let i = 0; i < rows.length; i += ETL_BATCH_SIZE) {
+            const batch = rows.slice(i, i + ETL_BATCH_SIZE);
+            const batchNum = Math.floor(i / ETL_BATCH_SIZE) + 1;
+            const totalBatches = Math.ceil(rows.length / ETL_BATCH_SIZE);
+            document.getElementById('etlSyncBtn').innerText = `Uploading batch ${batchNum}/${totalBatches}...`;
+            const { error } = await supabaseClient.rpc('import_and_merge_activity', { import_data: batch });
+            if (error) throw new Error(`Batch ${batchNum} failed: ${error.message}`);
+            totalUpserted += batch.length;
+        }
+        return totalUpserted;
     }
 
     async function runActivityETL() {
@@ -616,72 +688,121 @@
             return;
         }
 
+        // FIX #1: validate file extensions before doing any work
+        try {
+            validateFileExt(masterFile,     ['xlsx']);
+            validateFileExt(cprFile,        ['xlsx']);
+            validateFileExt(attendanceFile, ['csv']);
+        } catch (e) {
+            showEtlStatus(e.message, true);
+            return;
+        }
+
         const btn = document.getElementById('etlSyncBtn');
-        btn.disabled   = true;
-        btn.innerText  = "Processing...";
+        btn.disabled  = true;
+        btn.innerText = "Parsing files...";
         document.getElementById('etl-status').classList.add('hidden');
 
         try {
             // 1. Parse all three sources
-            const masterData     = await parseExcel(masterFile, 0);
-            const cprData        = await parseCPR(cprFile);
-            const attendanceData = await parseCSVFile(attendanceFile);
+            const masterData            = await parseExcel(masterFile);
+            const cprData               = await parseCPR(cprFile);
+            const { data: attendanceData, errors: csvErrors } = await parseCSVFile(attendanceFile);
 
-            // 2. Build Activity Master lookup (activity name → { gui, aap })
+            // 2. FIX #5: validate required columns exist in Activity Master
+            const masterCols = masterData.length > 0 ? Object.keys(masterData[0]) : [];
+            const hasActivityCol = masterCols.includes('Activity') || masterCols.includes('ActivityDisplay');
+            const hasGUI = masterCols.includes('GUI');
+            const hasAAP = masterCols.includes('AAP');
+            if (!hasActivityCol || !hasGUI || !hasAAP) {
+                throw new Error(
+                    `Activity Master is missing required columns. Found: [${masterCols.join(', ')}]. ` +
+                    `Expected: Activity (or ActivityDisplay), GUI, AAP. Is this the correct file?`
+                );
+            }
+
+            // FIX #5: validate required columns exist in Attendance CSV
+            const attendanceCols = attendanceData.length > 0 ? Object.keys(attendanceData[0]) : [];
+            const requiredAttendanceCols = ['ActivityDisplay','ActivityDateDisplay','Attendance','RegistrationDocumentNumber'];
+            const missingCols = requiredAttendanceCols.filter(c => !attendanceCols.includes(c));
+            if (missingCols.length > 0) {
+                throw new Error(`Attendance CSV is missing columns: ${missingCols.join(', ')}. Is this the correct file?`);
+            }
+
+            // 3. Build Activity Master lookup
             const masterMap = new Map();
             masterData.forEach(r => {
                 const act = (r.Activity || r.ActivityDisplay || "").trim();
                 if (act) {
                     masterMap.set(act, {
-                        gui: String(r.GUI  || '').trim().toLowerCase().startsWith('yes'),
-                        aap: String(r.AAP  || '').trim().toLowerCase().startsWith('yes')
+                        gui: String(r.GUI || '').trim().toLowerCase().startsWith('yes'),
+                        aap: String(r.AAP || '').trim().toLowerCase().startsWith('yes')
                     });
                 }
             });
 
-            // 3. Build CPR lookup (NRIC → CFS score)
+            // 4. Build CPR lookup
             const cprMap = new Map();
             cprData.forEach(r => {
                 const nric = String(r["UIN / NRIC"] || "").trim().toUpperCase();
                 if (nric) cprMap.set(nric, r["CFS (1-9)"] || "");
             });
 
-            // 4. Transform attendance rows
-            const rows = attendanceData
-                .filter(row => {
-                    if (String(row.Attendance) !== "1") return false;
-                    const act = (row.ActivityDisplay || "").split('\n')[0].trim();
-                    const master = masterMap.get(act);
-                    return master !== undefined && master.aap === true;
-                })
-                .map(row => {
-                    const act  = (row.ActivityDisplay || "").split('\n')[0].trim();
-                    const nric = (row.RegistrationDocumentNumber || "").trim().toUpperCase();
-                    const master = masterMap.get(act);
-                    return {
-                        activitydatedisplay:         formatToISODate(row.ActivityDateDisplay),
-                        activitydisplay:             act,
-                        fullname:                    row.FullName   || "",
-                        age:                         row.Age        || "",
-                        postalcode1:                 row.PostalCode || "",
-                        gender:                      row.Gender     || "",
-                        registrationdocumentnumber:  nric,
-                        gui:                         master ? master.gui : false,
-                        cfs:                         cprMap.get(nric) || ""
-                    };
+            // 5. Transform and validate each row
+            let skippedNoAttendance = 0, skippedNoAAP = 0, skippedBadDate = 0, skippedNoNRIC = 0;
+            const rows = [];
+
+            for (const row of attendanceData) {
+                if (String(row.Attendance) !== "1") { skippedNoAttendance++; continue; }
+
+                const act = (row.ActivityDisplay || "").split('\n')[0].trim();
+                const master = masterMap.get(act);
+                if (!master || !master.aap) { skippedNoAAP++; continue; }
+
+                // FIX #3: skip rows with missing NRIC
+                const nric = (row.RegistrationDocumentNumber || "").trim().toUpperCase();
+                if (!nric) { skippedNoNRIC++; continue; }
+
+                // FIX #2: skip rows with unparseable dates
+                const isoDate = formatToISODate(row.ActivityDateDisplay);
+                if (!isoDate) { skippedBadDate++; continue; }
+
+                rows.push({
+                    activitydatedisplay:        isoDate,
+                    activitydisplay:            act,
+                    fullname:                   row.FullName   || "",
+                    age:                        sanitiseAge(row.Age), // FIX #4
+                    postalcode1:                row.PostalCode || "",
+                    gender:                     row.Gender     || "",
+                    registrationdocumentnumber: nric,
+                    gui:                        master.gui,
+                    cfs:                        cprMap.get(nric) || ""
                 });
+            }
 
             if (rows.length === 0) {
-                showEtlStatus("No valid rows found after filtering. Check AAP column in Activity Master.", true);
+                let reason = "No valid rows found after filtering.";
+                if (skippedNoAAP > 0)   reason += ` ${skippedNoAAP} rows skipped (AAP filter).`;
+                if (skippedBadDate > 0) reason += ` ${skippedBadDate} rows skipped (bad date).`;
+                if (skippedNoNRIC > 0)  reason += ` ${skippedNoNRIC} rows skipped (missing NRIC).`;
+                showEtlStatus(reason, true);
                 return;
             }
 
-            // 5. Upsert to Supabase
+            // 6. FIX #6: batch upsert
             btn.innerText = "Uploading...";
-            const { data: rpcResult, error } = await supabaseClient.rpc('import_and_merge_activity', { import_data: rows });
-            if (error) throw error;
+            const totalUpserted = await upsertInBatches(rows);
 
-            showEtlStatus(`✓ ${rpcResult || rows.length + ' rows upserted successfully.'}`);
+            // Build summary including skipped row counts
+            let summary = `✓ ${totalUpserted} rows upserted successfully.`;
+            const skipped = [];
+            if (skippedNoAttendance > 0) skipped.push(`${skippedNoAttendance} absent`);
+            if (skippedNoAAP > 0)        skipped.push(`${skippedNoAAP} non-AAP`);
+            if (skippedNoNRIC > 0)       skipped.push(`${skippedNoNRIC} missing NRIC`);
+            if (skippedBadDate > 0)      skipped.push(`${skippedBadDate} bad date`);
+            if (csvErrors.length > 0)    skipped.push(`${csvErrors.length} CSV parse warnings`);
+            if (skipped.length > 0)      summary += ` Skipped: ${skipped.join(', ')}.`;
+            showEtlStatus(summary);
 
         } catch (err) {
             console.error(err);
@@ -692,14 +813,23 @@
         }
     }
 
-
+    // ─────────────────────────────────────────────
+    //  INIT
+    // ─────────────────────────────────────────────
     window.onload = async () => {
         resetIdleTimer(); // from auth-config.js
 
+        // FIX #9: handle token expiry and forced sign-out
         supabaseClient.auth.onAuthStateChange((event) => {
             if (event === "PASSWORD_RECOVERY") {
                 isRecovering = true;
                 showView('password-update-section');
+            }
+            // Redirect to login if session is lost while app is open
+            if (event === "SIGNED_OUT") {
+                document.getElementById('main-app').classList.add('hidden');
+                document.getElementById('title').classList.remove('hidden');
+                showView('login-section');
             }
         });
 
@@ -715,10 +845,13 @@
                 switchTab('search-section');
                 loadReports();
 
-                // Show admin tabs for admin users
-                const { data: profile } = await supabaseClient
+                // FIX #8: surface profile fetch errors
+                const { data: profile, error: profileError } = await supabaseClient
                     .from('profiles').select('role').eq('id', session.user.id).single();
-                if (profile?.role === 'admin') {
+                if (profileError) {
+                    console.error("Could not load user profile:", profileError.message);
+                    // Non-fatal: user continues as non-admin
+                } else if (profile?.role === 'admin') {
                     document.getElementById('admin-tab-btn').classList.remove('hidden');
                     document.getElementById('etl-tab-btn').classList.remove('hidden');
                 }
