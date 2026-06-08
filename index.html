@@ -168,7 +168,7 @@
         <!-- Tab navigation -->
         <div id="nav-tabs" class="tab-nav">
             <button id="search-tab-btn"   class="active"  onclick="switchTab('search-section')">🔍 Search</button>
-            <button id="activity-tab-btn"                 onclick="switchTab('activity-section')">📊 Reports</button>
+            <button id="activity-tab-btn" class="hidden"  onclick="switchTab('activity-section')">📊 Reports</button>
             <button id="admin-tab-btn"    class="hidden"  onclick="switchTab('etl-section')">⚙️ Members</button>
             <button id="etl-tab-btn"      class="hidden"  onclick="switchTab('activities-etl-section')">📥 Activities</button>
         </div>
@@ -855,17 +855,18 @@
                 document.getElementById('title').classList.add('hidden');
                 document.getElementById('main-app').classList.remove('hidden');
                 switchTab('search-section');
-                loadReports();
 
                 // FIX #8: surface profile fetch errors
                 const { data: profile, error: profileError } = await supabaseClient
                     .from('profiles').select('role').eq('id', session.user.id).single();
                 if (profileError) {
                     console.error("Could not load user profile:", profileError.message);
-                    // Non-fatal: user continues as non-admin
+                    // Non-fatal: user continues as staff (search only)
                 } else if (profile?.role === 'admin') {
+                    document.getElementById('activity-tab-btn').classList.remove('hidden');
                     document.getElementById('admin-tab-btn').classList.remove('hidden');
                     document.getElementById('etl-tab-btn').classList.remove('hidden');
+                    loadReports();
                 }
             } else {
                 showView('login-section');
