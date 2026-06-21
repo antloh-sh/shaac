@@ -415,22 +415,27 @@
     //  ACTIVITY REPORTS
     // ─────────────────────────────────────────────
     async function loadReports() {
+        const select = document.getElementById('report-select');
         try {
             const response = await fetch('reports.json');
             if (!response.ok) throw new Error(`HTTP ${response.status} loading reports.json`);
             const data = await response.json();
-            const select = document.getElementById('report-select');
             const reports = data.reports || data;
             if (!Array.isArray(reports) || reports.length === 0) throw new Error("reports.json is empty or malformed");
+
             reports.forEach(report => {
                 const opt = document.createElement('option');
                 opt.value     = report.id;
                 opt.innerText = report.name;
                 select.appendChild(opt);
             });
+            select.disabled = false;
         } catch (err) {
             console.error("Failed to load reports.json:", err);
             showMsg(`Could not load report list: ${err.message}`, "error");
+            select.disabled = true;
+            const runBtn = document.getElementById('run-btn');
+            if (runBtn) runBtn.disabled = true;
         }
     }
 
@@ -464,6 +469,16 @@
         resultBox.innerHTML = "Processing...";
         document.getElementById('data-coverage').innerText = `${startM} → ${endM}`;
 
+        // Defensive: confirm we still have a live session before firing the RPC
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+            showMsg("Your session has expired. Please log in again.", "error");
+            resultBox.innerHTML = "Session expired.";
+            btn.innerText = "Execute Query";
+            btn.disabled  = false;
+            return;
+        }
+
         try {
             const { data, error } = await supabaseClient.rpc(reportRPC, { start_date, end_date });
             if (error) throw error;
@@ -484,9 +499,21 @@
                 resultBox.innerHTML = `<span class="big-number">${data ?? 0}</span>`;
             }
         } catch (err) {
-            console.error(err);
-            showMsg(err.message, "error");
-            resultBox.innerHTML = "Error loading data.";
+            console.error("Report RPC failed:", err);
+
+            // Classify the error so staff see something actionable, not a raw stack trace
+            const isPermissionError =
+                err?.code === '42501' ||                       // Postgres insufficient_privilege
+                err?.code === 'PGRST301' ||                     // PostgREST JWT/role rejection
+                /permission denied|JWT|not authorized/i.test(err?.message || '');
+
+            if (isPermissionError) {
+                showMsg("You don't have permission to run this report, or your session expired. Please refresh and log in again.", "error");
+                resultBox.innerHTML = "Access denied.";
+            } else {
+                showMsg(err.message || "An unexpected error occurred while running this report.", "error");
+                resultBox.innerHTML = "Error loading data.";
+            }
         } finally {
             btn.innerText = "Execute Query";
             btn.disabled  = false;
@@ -845,28 +872,43 @@
             }
         });
 
-        const { data: { session } } = await supabaseClient.auth.getSession();
+        let session = null;
+        try {
+            const { data, error } = await supabaseClient.auth.getSession();
+            if (error) throw error;
+            session = data.session;
+        } catch (err) {
+            console.error("Failed to resolve session:", err);
+            showView('login-section');
+            return; // never proceed to DB calls without a resolved session
+        }
 
         setTimeout(async () => {
             if (isRecovering) return;
 
-            if (session) {
+            if (session?.user?.id) {
                 document.getElementById('login-section').classList.add('hidden');
                 document.getElementById('title').classList.add('hidden');
                 document.getElementById('main-app').classList.remove('hidden');
                 switchTab('search-section');
 
                 // FIX #8: surface profile fetch errors
-                const { data: profile, error: profileError } = await supabaseClient
-                    .from('profiles').select('role').eq('id', session.user.id).single();
-                if (profileError) {
-                    console.error("Could not load user profile:", profileError.message);
-                    // Non-fatal: user continues as staff (search only)
-                } else if (profile?.role === 'admin') {
-                    document.getElementById('activity-tab-btn').classList.remove('hidden');
-                    document.getElementById('admin-tab-btn').classList.remove('hidden');
-                    document.getElementById('etl-tab-btn').classList.remove('hidden');
-                    loadReports();
+                try {
+                    const { data: profile, error: profileError } = await supabaseClient
+                        .from('profiles').select('role').eq('id', session.user.id).single();
+
+                    if (profileError) {
+                        console.error("Could not load user profile:", profileError.message);
+                        // Non-fatal: user continues as staff (search only)
+                    } else if (profile?.role === 'admin') {
+                        document.getElementById('activity-tab-btn').classList.remove('hidden');
+                        document.getElementById('admin-tab-btn').classList.remove('hidden');
+                        document.getElementById('etl-tab-btn').classList.remove('hidden');
+                        await loadReports();
+                    }
+                } catch (err) {
+                    console.error("Error during post-login initialization:", err);
+                    showMsg("Some features may not have loaded correctly. Try refreshing the page.", "error");
                 }
             } else {
                 showView('login-section');
