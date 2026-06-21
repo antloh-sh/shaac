@@ -23,8 +23,13 @@ async function autoLogout() {
 }
 
 async function signOut() {
-    await supabaseClient.auth.signOut();
-    window.location.href = window.location.origin + window.location.pathname;
+    try {
+        await supabaseClient.auth.signOut();
+    } catch (err) {
+        console.error("Sign-out request failed, clearing local session anyway:", err);
+    } finally {
+        window.location.href = window.location.origin + window.location.pathname;
+    }
 }
 
 // FIX #8a: replaced deprecated onkeypress with onkeydown
