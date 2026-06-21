@@ -562,19 +562,82 @@
                         // Non-fatal: warn but continue with successfully parsed rows
                         showMsg(`CSV parse warnings (${results.errors.length} rows affected): ${sample}`, "error");
                     }
-                    const transformed = results.data.map(row => {
+
+                    // FIX #10: validate required columns exist before transforming.
+                    // Without this, picking the wrong file silently produces all-empty
+                    // rows and the sync still reports "Successful".
+                    const foundCols = (results.meta && results.meta.fields)
+                        ? results.meta.fields
+                        : (results.data.length > 0 ? Object.keys(results.data[0]) : []);
+                    const requiredCols = Object.keys(setup.mapping);
+                    const missingCols = requiredCols.filter(c => !foundCols.includes(c));
+                    if (missingCols.length > 0) {
+                        reject(new Error(
+                            `This CSV is missing required columns: ${missingCols.join(', ')}. ` +
+                            `Found: [${foundCols.join(', ') || 'none'}]. Is this the correct file?`
+                        ));
+                        return;
+                    }
+
+                    const checkBoundary = requiredCols.includes('ResidesWithinServiceBoundaryStr');
+                    const checkDOB      = requiredCols.includes('DateOfBirth');
+
+                    let skippedNoBoundary = 0;
+                    let skippedBadDOB     = 0;
+                    const transformed = [];
+
+                    results.data.forEach(row => {
                         let r = {};
+                        let skipRow = false;
+
                         for (let k in setup.mapping) {
-                            let v = row[k] || "";
-                            if (k === 'ResidesWithinServiceBoundaryStr') v = v.toLowerCase() === 'yes' ? 'true' : 'false';
-                            if (k === 'DateOfBirth' && v.includes('-')) {
-                                const d = new Date(v); if (!isNaN(d)) v = d.toISOString().split('T')[0];
+                            let v = (row[k] !== undefined && row[k] !== null) ? String(row[k]).trim() : '';
+
+                            // FIX #11: a missing boundary value must not silently become
+                            // "false" — that miscodes an unknown status as "out of boundary",
+                            // which can wrongly exclude a senior from in-boundary reports.
+                            // Skip the row instead and report it, rather than guessing.
+                            if (k === 'ResidesWithinServiceBoundaryStr') {
+                                if (v === '') {
+                                    skippedNoBoundary++;
+                                    skipRow = true;
+                                } else {
+                                    v = v.toLowerCase() === 'yes' ? 'true' : 'false';
+                                }
                             }
+
+                            // FIX #12: a missing/unparseable date of birth previously got sent
+                            // through as-is and would fail the *entire* batch insert at the
+                            // database layer (one bad row blocking everyone else's sync).
+                            // Skip just that row instead.
+                            if (k === 'DateOfBirth') {
+                                if (v === '') {
+                                    skippedBadDOB++;
+                                    skipRow = true;
+                                } else if (v.includes('-')) {
+                                    const d = new Date(v);
+                                    if (!isNaN(d)) {
+                                        v = d.toISOString().split('T')[0];
+                                    } else {
+                                        skippedBadDOB++;
+                                        skipRow = true;
+                                    }
+                                }
+                            }
+
                             r[setup.mapping[k]] = v;
                         }
-                        return r;
+
+                        if (!skipRow) transformed.push(r);
                     });
-                    resolve(transformed);
+
+                    resolve({
+                        rows: transformed,
+                        skipped: {
+                            noBoundary: checkBoundary ? skippedNoBoundary : 0,
+                            badDOB:     checkDOB ? skippedBadDOB : 0
+                        }
+                    });
                 },
                 error: reject
             });
@@ -592,20 +655,26 @@
         try {
             const results = [];
             if (membershipFile) {
-                const data = await parseAndTransform(membershipFile, etlConfig.membership);
-                if (data.length === 0) throw new Error("Member Details CSV appears empty after parsing.");
-                const { error } = await supabaseClient.rpc(etlConfig.membership.rpc, { import_data: data });
+                const { rows, skipped } = await parseAndTransform(membershipFile, etlConfig.membership);
+                if (rows.length === 0) throw new Error("Member Details CSV appears empty after parsing (or every row was skipped — check warnings below).");
+                const { error } = await supabaseClient.rpc(etlConfig.membership.rpc, { import_data: rows });
                 if (error) throw new Error(`Member Details: ${error.message}`);
-                results.push("Member Details ✓");
+
+                let summary = `Member Details ✓ (${rows.length} synced)`;
+                const skipNotes = [];
+                if (skipped.noBoundary > 0) skipNotes.push(`${skipped.noBoundary} missing boundary status`);
+                if (skipped.badDOB > 0)     skipNotes.push(`${skipped.badDOB} missing/invalid date of birth`);
+                if (skipNotes.length > 0)   summary += ` — skipped: ${skipNotes.join(', ')}`;
+                results.push(summary);
             }
             if (familyFile) {
-                const data = await parseAndTransform(familyFile, etlConfig.family);
-                if (data.length === 0) throw new Error("Family Members CSV appears empty after parsing.");
-                const { error } = await supabaseClient.rpc(etlConfig.family.rpc, { import_data: data });
+                const { rows } = await parseAndTransform(familyFile, etlConfig.family);
+                if (rows.length === 0) throw new Error("Family Members CSV appears empty after parsing.");
+                const { error } = await supabaseClient.rpc(etlConfig.family.rpc, { import_data: rows });
                 if (error) throw new Error(`Family Members: ${error.message}`);
-                results.push("Family Members ✓");
+                results.push(`Family Members ✓ (${rows.length} synced)`);
             }
-            showMsg(`Sync Successful: ${results.join(", ")}`, "success");
+            showMsg(`Sync Successful: ${results.join(" | ")}`, "success");
         } catch (e) {
             showMsg(e.message, "error");
         } finally {
