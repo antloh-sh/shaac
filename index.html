@@ -381,16 +381,22 @@
                     <div>
                         <div class="member-name">${sanitise(member.fullnamenative)}${member.toaddressas ? ` (${sanitise(member.toaddressas)})` : ''}</div>
                         ${member.currentmembershipstatus === 'Terminated' ? `<span style="color:#ef4444;font-weight:600;font-size:0.9rem;">Terminated</span>` : ''}
+                        ${member.household_count > 0 ? `<div style="margin-top:4px;"><span style="background:#eef2ff;color:#6366f1;padding:3px 10px;border-radius:12px;font-size:0.8rem;font-weight:600;">🏠 ${member.household_count} household member${member.household_count === 1 ? '' : 's'}</span></div>` : ''}
                     </div>
-                    <button class="nok-btn" onclick="fetchNOK('${sanitise(member.registrationdocumentnumber)}')">NOK</button>
+                    <div style="display:flex; gap:8px; flex-direction:column;">
+                        <button class="nok-btn" onclick="fetchNOK('${sanitise(member.registrationdocumentnumber)}')">NOK</button>
+                        ${member.household_count > 0 ? `<button class="nok-btn" style="background:#6366f1;" onclick="fetchHousehold('${sanitise(member.registrationdocumentnumber)}')">Household</button>` : ''}
+                    </div>
                 </div>
                 <div class="member-details">
                     <strong>Gender:</strong> ${sanitise(member.gender) || 'Not Specified'}<br>
+                    <strong>DOB:</strong> ${sanitise(member.dateofbirth) || 'N/A'}<br>
                     <strong>NRIC:</strong> ${sanitise(member.registrationdocumentnumber)}<br>
                     <strong>Tel:</strong> ${sanitise(member.phone) || 'N/A'}
                 </div>
                 <div class="result-address"><strong>Address:</strong><br>${sanitise(member.fulladdress) || 'N/A'}</div>
                 <div id="nok-list-${sanitise(member.registrationdocumentnumber)}" class="nok-container hidden"></div>
+                <div id="household-list-${sanitise(member.registrationdocumentnumber)}" class="nok-container hidden" style="border-color:#6366f1;"></div>
             </div>`).join('');
     }
 
@@ -408,6 +414,36 @@
                 <div style="font-size:1rem;padding:8px 0;border-bottom:1px solid #eee;">
                     <strong>${sanitise(nok.familymembername)}</strong> (${sanitise(nok.relationshiptofollowiltcmasterlist) || 'N/A'})<br>
                     Mobile: ${sanitise(nok.mobilephone) || 'N/A'}
+                </div>`).join('');
+    }
+
+    function calcAge(dobStr) {
+        if (!dobStr) return 'N/A';
+        const dob = new Date(dobStr);
+        if (isNaN(dob.getTime())) return 'N/A';
+        const today = new Date();
+        let age = today.getFullYear() - dob.getFullYear();
+        const hasNotHadBirthdayYet = (today.getMonth() < dob.getMonth()) ||
+            (today.getMonth() === dob.getMonth() && today.getDate() < dob.getDate());
+        if (hasNotHadBirthdayYet) age--;
+        return age;
+    }
+
+    async function fetchHousehold(regNo) {
+        const container = document.getElementById(`household-list-${regNo}`);
+        if (!container.classList.contains('hidden')) { container.classList.add('hidden'); return; }
+        container.classList.remove('hidden');
+        container.innerHTML = "Loading household members...";
+        const { data, error } = await supabaseClient.rpc('get_household_members', { reg_no: regNo });
+        if (error) { container.innerHTML = `<p style="color:#ef4444;">Error: ${error.message}</p>`; return; }
+        if (!data || data.length === 0) { container.innerHTML = "<p>No other household members found.</p>"; return; }
+        container.innerHTML = `<div style="font-weight:bold;color:#6366f1;">🏠 Household Members:</div>` +
+            data.map(h => `
+                <div style="font-size:1rem;padding:8px 0;border-bottom:1px solid #eee;">
+                    <strong>${sanitise(h.fullnamenative)}</strong>
+                    ${h.currentmembershipstatus === 'Terminated' ? `<span style="color:#ef4444;font-weight:600;font-size:0.8rem;"> (Terminated)</span>` : ''}<br>
+                    Gender: ${sanitise(h.gender) || 'N/A'} &nbsp;·&nbsp; Age: ${calcAge(h.dateofbirth)} &nbsp;·&nbsp; DOB: ${sanitise(h.dateofbirth) || 'N/A'}<br>
+                    Tel: ${sanitise(h.phone) || 'N/A'}
                 </div>`).join('');
     }
 
