@@ -358,10 +358,27 @@
     async function updatePassword() {
         const newPassword = document.getElementById('new-password').value;
         if (newPassword.length < 6) return showMsg("Min 6 characters required", "error");
-        const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
+
+        const { data: userData, error } = await supabaseClient.auth.updateUser({ password: newPassword });
         if (error) return showMsg(error.message, "error");
-        alert("Password updated successfully!");
-        await signOut();
+
+        // Flip has_set_password flag now that a real password exists
+        const userId = userData?.user?.id;
+        if (userId) {
+            const { error: flagError } = await supabaseClient
+                .from('profiles')
+                .update({ has_set_password: true })
+                .eq('id', userId);
+            if (flagError) {
+                console.error("Failed to update has_set_password flag:", flagError.message);
+                showMsg("Password set, but a setup step failed. Please contact your admin.", "error");
+                return;
+            }
+        }
+
+        isRecovering = false;
+        showMsg("Password set successfully!", "success");
+        await proceedToMainApp(userId);
     }
 
     // ─────────────────────────────────────────────
@@ -960,6 +977,33 @@
     // ─────────────────────────────────────────────
     //  INIT
     // ─────────────────────────────────────────────
+
+    // Reusable: shows the main app and loads role-based tabs.
+    // Called after normal login AND after first-time password setup.
+    async function proceedToMainApp(userId) {
+        document.getElementById('login-section').classList.add('hidden');
+        document.getElementById('title').classList.add('hidden');
+        document.getElementById('main-app').classList.remove('hidden');
+        switchTab('search-section');
+
+        try {
+            const { data: profile, error: profileError } = await supabaseClient
+                .from('profiles').select('role').eq('id', userId).single();
+
+            if (profileError) {
+                console.error("Could not load user profile:", profileError.message);
+            } else if (profile?.role === 'admin') {
+                document.getElementById('activity-tab-btn').classList.remove('hidden');
+                document.getElementById('admin-tab-btn').classList.remove('hidden');
+                document.getElementById('etl-tab-btn').classList.remove('hidden');
+                await loadReports();
+            }
+        } catch (err) {
+            console.error("Error during post-login initialization:", err);
+            showMsg("Some features may not have loaded correctly. Try refreshing the page.", "error");
+        }
+    }
+
     window.onload = async () => {
         resetIdleTimer(); // from auth-config.js
 
@@ -992,29 +1036,30 @@
             if (isRecovering) return;
 
             if (session?.user?.id) {
-                document.getElementById('login-section').classList.add('hidden');
-                document.getElementById('title').classList.add('hidden');
-                document.getElementById('main-app').classList.remove('hidden');
-                switchTab('search-section');
+                // Check has_set_password BEFORE showing any app content.
+                // Covers both the PASSWORD_RECOVERY flow and the invite-link
+                // (SIGNED_IN) flow, which Supabase does not flag as recovery.
+                const { data: profile, error: profileError } = await supabaseClient
+                    .from('profiles')
+                    .select('has_set_password')
+                    .eq('id', session.user.id)
+                    .single();
 
-                // FIX #8: surface profile fetch errors
-                try {
-                    const { data: profile, error: profileError } = await supabaseClient
-                        .from('profiles').select('role').eq('id', session.user.id).single();
-
-                    if (profileError) {
-                        console.error("Could not load user profile:", profileError.message);
-                        // Non-fatal: user continues as staff (search only)
-                    } else if (profile?.role === 'admin') {
-                        document.getElementById('activity-tab-btn').classList.remove('hidden');
-                        document.getElementById('admin-tab-btn').classList.remove('hidden');
-                        document.getElementById('etl-tab-btn').classList.remove('hidden');
-                        await loadReports();
-                    }
-                } catch (err) {
-                    console.error("Error during post-login initialization:", err);
-                    showMsg("Some features may not have loaded correctly. Try refreshing the page.", "error");
+                if (profileError) {
+                    console.error("Could not verify password setup status:", profileError.message);
+                    showMsg("Could not verify account status. Please contact your admin.", "error");
+                    showView('login-section');
+                    return;
                 }
+
+                if (profile?.has_set_password === false) {
+                    // Block all app content until a real password is set
+                    isRecovering = true;
+                    showView('password-update-section');
+                    return;
+                }
+
+                await proceedToMainApp(session.user.id);
             } else {
                 showView('login-section');
             }
