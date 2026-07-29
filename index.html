@@ -158,7 +158,7 @@
     <div id="password-update-section" class="hidden">
         <h3 style="text-align:center;">Set New Password</h3>
         <p style="text-align:center; font-size:0.9rem; color:var(--grey);">Please enter a new password for your account.</p>
-        <input type="password" id="new-password" placeholder="New Password (min 6 chars)">
+        <input type="password" id="new-password" placeholder="New Password (min 6 chars)" maxlength="72">
         <button onclick="updatePassword()">Update &amp; Log In</button>
     </div>
 
@@ -176,7 +176,7 @@
         <!-- ── TAB: Member Search ── -->
         <div id="search-section">
             <h3>Member Search</h3>
-            <input type="text" id="search-input" placeholder="Enter Name, NRIC or Phone#" onkeyup="handleKeyPress(event)">
+            <input type="text" id="search-input" placeholder="Enter Name, NRIC or Phone#" onkeyup="handleKeyPress(event)" maxlength="100">
             <button onclick="handleSearch()">Search</button>
             <div id="search-results" style="margin-top:20px;"></div>
         </div>
@@ -327,11 +327,22 @@
         document.getElementById(inputId).closest('.drop-zone').classList.toggle('selected', !!f);
     }
 
+    let passwordVisibilityTimer = null;
     function togglePasswordVisibility(inputId) {
         const input = document.getElementById(inputId);
         const icon  = input.nextElementSibling;
-        input.type  = input.type === "password" ? "text" : "password";
-        icon.innerText = input.type === "password" ? "👁️" : "🔒";
+        const isShowing = input.type === 'password';
+        input.type  = isShowing ? 'text' : 'password';
+        icon.innerText = isShowing ? '🔒' : '👁️';
+
+        // Auto-revert to hidden after 5 seconds for security
+        if (passwordVisibilityTimer) clearTimeout(passwordVisibilityTimer);
+        if (isShowing) {
+            passwordVisibilityTimer = setTimeout(() => {
+                input.type = 'password';
+                icon.innerText = '👁️';
+            }, 5000);
+        }
     }
 
     // ─────────────────────────────────────────────
@@ -390,7 +401,7 @@
         if (term.length < 2) return;
         resultsDiv.innerHTML = "<p>Searching...</p>";
         const { data, error } = await supabaseClient.rpc('search_members_generic', { search_term: term });
-        if (error) { resultsDiv.innerHTML = `<div class="message error">${error.message}</div>`; return; }
+        if (error) { resultsDiv.innerHTML = `<div class="message error">${sanitise(error.message)}</div>`; return; }
         if (!data || data.length === 0) { resultsDiv.innerHTML = `<div class="empty-state"><p>🚫 No results found</p></div>`; return; }
         resultsDiv.innerHTML = data.map(member => `
             <div class="result-item">
@@ -424,7 +435,7 @@
         container.innerHTML = "Loading NOK...";
         const { data, error } = await supabaseClient.rpc('get_member_nok', { reg_no: regNo });
         // FIX #9 surface NOK fetch errors rather than silently showing nothing
-        if (error) { container.innerHTML = `<p style="color:#ef4444;">Error: ${error.message}</p>`; return; }
+        if (error) { container.innerHTML = `<p style="color:#ef4444;">Error: ${sanitise(error.message)}</p>`; return; }
         if (!data || data.length === 0) { container.innerHTML = "<p>No NOK found.</p>"; return; }
         container.innerHTML = `<div style="font-weight:bold;color:#3b82f6;">Family Contacts:</div>` +
             data.map(nok => `
@@ -452,7 +463,7 @@
         container.classList.remove('hidden');
         container.innerHTML = "Loading household members...";
         const { data, error } = await supabaseClient.rpc('get_household_members', { reg_no: regNo });
-        if (error) { container.innerHTML = `<p style="color:#ef4444;">Error: ${error.message}</p>`; return; }
+        if (error) { container.innerHTML = `<p style="color:#ef4444;">Error: ${sanitise(error.message)}</p>`; return; }
         if (!data || data.length === 0) { container.innerHTML = "<p>No other household members found.</p>"; return; }
         container.innerHTML = `<div style="font-weight:bold;color:#6366f1;">🏠 Household Members:</div>` +
             data.map(h => `
