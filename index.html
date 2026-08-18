@@ -516,7 +516,6 @@
             return;
         }
 
-        // FIX #10: validate start <= end
         if (startM > endM) {
             showMsg("Start month cannot be after end month", "error");
             return;
@@ -539,7 +538,6 @@
         const existingHeader = document.getElementById('results-header');
         if (existingHeader) existingHeader.remove();
 
-        // Defensive: confirm we still have a live session before firing the RPC
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) {
             showMsg("Your session has expired. Please log in again.", "error");
@@ -585,10 +583,16 @@
                 } else {
                     rowCountSpan.innerText = `📊 ${data.length.toLocaleString()} rows`;
                     
-                    const headers = Object.keys(data[0]);
-                    let html = `<table><thead><tr>${headers.map(h => `<th>${sanitise(h).replace(/_/g,' ').toUpperCase()}</th>`).join('')}</tr></thead><tbody>`;
+                    // Store the original column names for CSV export
+                    const originalHeaders = Object.keys(data[0]);
+                    // Store them on the result box for the export function to access
+                    resultBox.dataset.headers = JSON.stringify(originalHeaders);
+                    
+                    // Display with formatted headers (spaces, uppercase for readability)
+                    const displayHeaders = originalHeaders.map(h => h.replace(/_/g,' ').toUpperCase());
+                    let html = `<table><thead><tr>${displayHeaders.map(h => `<th>${sanitise(h)}</th>`).join('')}</tr></thead><tbody>`;
                     data.forEach(row => {
-                        html += `<tr>${headers.map(h => `<td>${sanitise(row[h]) ?? '-'}</td>`).join('')}</tr>`;
+                        html += `<tr>${originalHeaders.map(h => `<td>${sanitise(row[h]) ?? '-'}</td>`).join('')}</tr>`;
                     });
                     html += `</tbody></table>`;
                     resultBox.innerHTML = html;
@@ -623,10 +627,9 @@
         } catch (err) {
             console.error("Report RPC failed:", err);
 
-            // Classify the error so staff see something actionable, not a raw stack trace
             const isPermissionError =
-                err?.code === '42501' ||                       // Postgres insufficient_privilege
-                err?.code === 'PGRST301' ||                     // PostgREST JWT/role rejection
+                err?.code === '42501' ||
+                err?.code === 'PGRST301' ||
                 /permission denied|JWT|not authorized/i.test(err?.message || '');
 
             if (isPermissionError) {
@@ -642,7 +645,7 @@
         }
     }
 
-        // ─────────────────────────────────────────────
+    // ─────────────────────────────────────────────
     //  EXPORT REPORT TO CSV
     // ─────────────────────────────────────────────
     function exportReportToCSV() {
@@ -659,6 +662,34 @@
             return;
         }
         
+        // Get the original column names stored during report generation
+        let originalHeaders = [];
+        try {
+            originalHeaders = JSON.parse(resultBox.dataset.headers || '[]');
+        } catch (e) {
+            // Fallback: try to extract from thead
+            const thead = table.querySelector('thead');
+            if (thead) {
+                const headerCells = thead.querySelectorAll('th');
+                headerCells.forEach(th => {
+                    // Convert display header back to original format (lowercase, underscores)
+                    const displayHeader = th.innerText.trim();
+                    originalHeaders.push(displayHeader.toLowerCase().replace(/ /g, '_'));
+                });
+            }
+        }
+        
+        // If no original headers found, use display headers
+        if (originalHeaders.length === 0) {
+            const thead = table.querySelector('thead');
+            if (thead) {
+                const headerCells = thead.querySelectorAll('th');
+                headerCells.forEach(th => {
+                    originalHeaders.push(th.innerText.trim());
+                });
+            }
+        }
+        
         // Get report name for filename
         const reportName = reportSelect.options[reportSelect.selectedIndex]?.text || 'report';
         const filename = `${reportName.replace(/\s+/g, '_')}_${startM}_to_${endM}.csv`;
@@ -672,15 +703,7 @@
         setTimeout(() => {
             try {
                 // Extract data from table
-                const headers = [];
                 const rows = [];
-                
-                // Get headers from thead
-                const thead = table.querySelector('thead');
-                if (thead) {
-                    const headerCells = thead.querySelectorAll('th');
-                    headerCells.forEach(th => headers.push(th.innerText.trim()));
-                }
                 
                 // Get data from tbody
                 const tbody = table.querySelector('tbody');
@@ -700,9 +723,9 @@
                 // Add BOM for UTF-8 (helps Excel)
                 csvContent += '\uFEFF';
                 
-                // Add headers
-                if (headers.length > 0) {
-                    csvContent += headers.map(h => `"${h.replace(/"/g, '""')}"`).join(',') + '\n';
+                // Add headers - use original column names (lowercase, underscores)
+                if (originalHeaders.length > 0) {
+                    csvContent += originalHeaders.map(h => `"${h.replace(/"/g, '""')}"`).join(',') + '\n';
                 }
                 
                 // Add data rows
