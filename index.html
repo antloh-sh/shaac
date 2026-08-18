@@ -533,6 +533,12 @@
         resultBox.innerHTML = "Processing...";
         document.getElementById('data-coverage').innerText = `${startM} → ${endM}`;
 
+        // Remove any existing export button and header
+        const existingExportBtn = document.getElementById('export-csv-btn');
+        if (existingExportBtn) existingExportBtn.remove();
+        const existingHeader = document.getElementById('results-header');
+        if (existingHeader) existingHeader.remove();
+
         // Defensive: confirm we still have a live session before firing the RPC
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) {
@@ -547,10 +553,38 @@
             const { data, error } = await supabaseClient.rpc(reportRPC, { start_date, end_date });
             if (error) throw error;
 
+            // Create results header with export button
+            const headerDiv = document.createElement('div');
+            headerDiv.id = 'results-header';
+            headerDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin: 16px 0 12px 0; padding: 12px 16px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;';
+            
+            const rowCountSpan = document.createElement('span');
+            rowCountSpan.style.cssText = 'font-weight: 600; color: #475569;';
+            
+            const exportBtn = document.createElement('button');
+            exportBtn.id = 'export-csv-btn';
+            exportBtn.innerText = '📥 Download CSV';
+            exportBtn.style.cssText = 'background: #3b82f6; color: white; border: none; border-radius: 6px; padding: 8px 20px; font-weight: 600; cursor: pointer; font-size: 0.9rem; transition: opacity 0.2s;';
+            exportBtn.onmouseover = () => exportBtn.style.opacity = '0.85';
+            exportBtn.onmouseout = () => exportBtn.style.opacity = '1';
+            exportBtn.onclick = exportReportToCSV;
+            
+            headerDiv.appendChild(rowCountSpan);
+            headerDiv.appendChild(exportBtn);
+            
+            // Insert header before result box
+            resultContainer.insertBefore(headerDiv, resultBox);
+
             if (Array.isArray(data)) {
                 if (data.length === 0) {
                     resultBox.innerHTML = "<p style='text-align:center'>No records found.</p>";
+                    rowCountSpan.innerText = '📊 0 rows';
+                    exportBtn.disabled = true;
+                    exportBtn.style.opacity = '0.5';
+                    exportBtn.title = 'No data to export';
                 } else {
+                    rowCountSpan.innerText = `📊 ${data.length.toLocaleString()} rows`;
+                    
                     const headers = Object.keys(data[0]);
                     let html = `<table><thead><tr>${headers.map(h => `<th>${sanitise(h).replace(/_/g,' ').toUpperCase()}</th>`).join('')}</tr></thead><tbody>`;
                     data.forEach(row => {
@@ -558,9 +592,33 @@
                     });
                     html += `</tbody></table>`;
                     resultBox.innerHTML = html;
+                    
+                    // Enable export button
+                    exportBtn.disabled = false;
+                    exportBtn.style.opacity = '1';
                 }
             } else {
+                // Handle single-number reports (non-array results)
                 resultBox.innerHTML = `<span class="big-number">${data ?? 0}</span>`;
+                rowCountSpan.innerText = '📊 Result';
+                exportBtn.disabled = false;
+                exportBtn.style.opacity = '1';
+                
+                // For single numbers, handle export differently
+                exportBtn.onclick = () => {
+                    const val = data ?? 0;
+                    const csvContent = '\uFEFFResult\n' + val;
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement('a');
+                    const url = URL.createObjectURL(blob);
+                    link.href = url;
+                    link.download = `${reportRPC}_${startM}_to_${endM}.csv`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                    showMsg('✅ CSV exported successfully', 'success');
+                };
             }
         } catch (err) {
             console.error("Report RPC failed:", err);
@@ -582,6 +640,96 @@
             btn.innerText = "Execute Query";
             btn.disabled  = false;
         }
+    }
+
+        // ─────────────────────────────────────────────
+    //  EXPORT REPORT TO CSV
+    // ─────────────────────────────────────────────
+    function exportReportToCSV() {
+        const resultBox = document.getElementById('result-box');
+        const reportSelect = document.getElementById('report-select');
+        const startM = document.getElementById('start-month').value;
+        const endM = document.getElementById('end-month').value;
+        const exportBtn = document.getElementById('export-csv-btn');
+        
+        // Check if there's data to export
+        const table = resultBox.querySelector('table');
+        if (!table) {
+            showMsg("No data to export. Please run a report first.", "error");
+            return;
+        }
+        
+        // Get report name for filename
+        const reportName = reportSelect.options[reportSelect.selectedIndex]?.text || 'report';
+        const filename = `${reportName.replace(/\s+/g, '_')}_${startM}_to_${endM}.csv`;
+        
+        // Show processing state
+        const originalText = exportBtn.innerText;
+        exportBtn.disabled = true;
+        exportBtn.innerText = "⏳ Generating...";
+        
+        // Use setTimeout to allow UI to update before heavy processing
+        setTimeout(() => {
+            try {
+                // Extract data from table
+                const headers = [];
+                const rows = [];
+                
+                // Get headers from thead
+                const thead = table.querySelector('thead');
+                if (thead) {
+                    const headerCells = thead.querySelectorAll('th');
+                    headerCells.forEach(th => headers.push(th.innerText.trim()));
+                }
+                
+                // Get data from tbody
+                const tbody = table.querySelector('tbody');
+                if (tbody) {
+                    const dataRows = tbody.querySelectorAll('tr');
+                    dataRows.forEach(tr => {
+                        const rowData = [];
+                        const cells = tr.querySelectorAll('td');
+                        cells.forEach(td => rowData.push(td.innerText.trim()));
+                        rows.push(rowData);
+                    });
+                }
+                
+                // Build CSV content
+                let csvContent = '';
+                
+                // Add BOM for UTF-8 (helps Excel)
+                csvContent += '\uFEFF';
+                
+                // Add headers
+                if (headers.length > 0) {
+                    csvContent += headers.map(h => `"${h.replace(/"/g, '""')}"`).join(',') + '\n';
+                }
+                
+                // Add data rows
+                rows.forEach(row => {
+                    csvContent += row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(',') + '\n';
+                });
+                
+                // Create download
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                link.href = url;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                
+                showMsg(`✅ CSV exported: ${filename} (${rows.length.toLocaleString()} rows)`, "success");
+            } catch (error) {
+                console.error("Export failed:", error);
+                showMsg(`Export failed: ${error.message}`, "error");
+            } finally {
+                exportBtn.disabled = false;
+                exportBtn.innerText = originalText;
+            }
+        }, 100);
     }
 
     // ─────────────────────────────────────────────
