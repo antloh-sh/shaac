@@ -31,6 +31,10 @@
     {
       "id": "get_all_cfs_breakdown",
       "name": "Activity Session Count & CFS Averages (All members)"
+    },
+    {
+      "id": "get_member_activity_summary",
+      "name": "Member Activity Summary (In Boundary, 60+)"
     }
   ]
 }
