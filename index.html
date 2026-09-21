@@ -422,7 +422,10 @@
                     <strong>NRIC:</strong> ${sanitise(member.registrationdocumentnumber)}<br>
                     <strong>Tel:</strong> ${sanitise(member.phone) || 'N/A'}
                 </div>
-                <div class="result-address"><strong>Address:</strong><br>${sanitise(member.fulladdress) || 'N/A'}</div>
+                <div class="result-address">
+                    <strong>Address:</strong><br>${sanitise(member.fulladdress) || 'N/A'}
+                    <div style="margin-top:8px;"><strong>In Service Boundary:</strong> ${member.resideswithinserviceboundarystr ? '<span style="color:#16a34a;">Yes</span>' : '<span style="color:#ef4444;">No</span>'}</div>
+                </div>
                 <div id="nok-list-${sanitise(member.registrationdocumentnumber)}" class="nok-container hidden"></div>
                 <div id="household-list-${sanitise(member.registrationdocumentnumber)}" class="nok-container hidden" style="border-color:#6366f1;"></div>
             </div>`).join('');
