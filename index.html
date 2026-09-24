@@ -493,6 +493,8 @@
                     ${sanitise(a.activitydatedisplay)} &nbsp;·&nbsp; ${sanitise(a.activitydisplay)}
                 </div>`).join('');
     }
+
+    async function fetchHousehold(regNo) {
         const container = document.getElementById(`household-list-${regNo}`);
         if (!container.classList.contains('hidden')) { container.classList.add('hidden'); return; }
         container.classList.remove('hidden');
