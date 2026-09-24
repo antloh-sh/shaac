@@ -414,6 +414,7 @@
                     <div style="display:flex; gap:8px; flex-direction:column;">
                         <button class="nok-btn" onclick="fetchNOK('${sanitise(member.registrationdocumentnumber)}')">NOK</button>
                         ${member.household_count > 0 ? `<button class="nok-btn" style="background:#6366f1;" onclick="fetchHousehold('${sanitise(member.registrationdocumentnumber)}')">Household</button>` : ''}
+                        <button class="nok-btn" style="background:#0ea5e9;" onclick="fetchMemberActivities('${sanitise(member.registrationdocumentnumber)}')">Activities</button>
                     </div>
                 </div>
                 <div class="member-details">
@@ -428,6 +429,7 @@
                 </div>
                 <div id="nok-list-${sanitise(member.registrationdocumentnumber)}" class="nok-container hidden"></div>
                 <div id="household-list-${sanitise(member.registrationdocumentnumber)}" class="nok-container hidden" style="border-color:#6366f1;"></div>
+                <div id="activities-list-${sanitise(member.registrationdocumentnumber)}" class="nok-container hidden" style="border-color:#0ea5e9;"></div>
             </div>`).join('');
     }
 
@@ -460,7 +462,20 @@
         return age;
     }
 
-    async function fetchHousehold(regNo) {
+    async function fetchMemberActivities(regNo) {
+        const container = document.getElementById(`activities-list-${regNo}`);
+        if (!container.classList.contains('hidden')) { container.classList.add('hidden'); return; }
+        container.classList.remove('hidden');
+        container.innerHTML = "Loading activities...";
+        const { data, error } = await supabaseClient.rpc('get_member_activities', { reg_no: regNo });
+        if (error) { container.innerHTML = `<p style="color:#ef4444;">Error: ${sanitise(error.message)}</p>`; return; }
+        if (!data || data.length === 0) { container.innerHTML = "<p>No activities found.</p>"; return; }
+        container.innerHTML = `<div style="font-weight:bold;color:#0ea5e9;">🏃 Activities (${data.length}):</div>` +
+            data.map(a => `
+                <div style="font-size:1rem;padding:8px 0;border-bottom:1px solid #eee;">
+                    ${sanitise(a.activitydatedisplay)} &nbsp;·&nbsp; ${sanitise(a.activitydisplay)}
+                </div>`).join('');
+    }
         const container = document.getElementById(`household-list-${regNo}`);
         if (!container.classList.contains('hidden')) { container.classList.add('hidden'); return; }
         container.classList.remove('hidden');
