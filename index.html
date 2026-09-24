@@ -349,12 +349,29 @@
     //  AUTH
     // ─────────────────────────────────────────────
     async function signIn() {
-        const { error } = await supabaseClient.auth.signInWithPassword({
-            email:    document.getElementById('email').value,
-            password: document.getElementById('password').value
-        });
-        if (error) return showMsg(error.message, 'error');
-        window.location.reload();
+        const btn   = document.querySelector('#login-section button');
+        const email = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value;
+
+        if (!email || !password) return showMsg("Please enter your email and password.", "error");
+
+        btn.innerText = "Signing in...";
+        btn.disabled  = true;
+
+        try {
+            const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+            if (error) {
+                showMsg(error.message, 'error');
+                btn.innerText = "Sign In";
+                btn.disabled  = false;
+                return;
+            }
+            window.location.reload();
+        } catch (err) {
+            showMsg("An unexpected error occurred. Please try again.", "error");
+            btn.innerText = "Sign In";
+            btn.disabled  = false;
+        }
     }
 
     async function sendResetEmail() {
