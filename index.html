@@ -487,11 +487,13 @@
         const { data, error } = await supabaseClient.rpc('get_member_activities', { reg_no: regNo });
         if (error) { container.innerHTML = `<p style="color:#ef4444;">Error: ${sanitise(error.message)}</p>`; return; }
         if (!data || data.length === 0) { container.innerHTML = "<p>No activities found.</p>"; return; }
-        container.innerHTML = `<div style="font-weight:bold;color:#0ea5e9;">🏃 Activities (${data.length}):</div>` +
+        container.innerHTML = `<div style="font-weight:bold;color:#0ea5e9;">🏃 Activities (${data.length}):</div>
+            <div style="max-height:210px;overflow-y:auto;margin-top:4px;">` +
             data.map(a => `
                 <div style="font-size:1rem;padding:8px 0;border-bottom:1px solid #eee;">
                     ${sanitise(a.activitydatedisplay)} &nbsp;·&nbsp; ${sanitise(a.activitydisplay)}
-                </div>`).join('');
+                </div>`).join('') +
+            `</div>`;
     }
 
     async function fetchHousehold(regNo) {
