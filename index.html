@@ -206,6 +206,40 @@
 
             <div id="result-container" class="hidden">
                 <div id="result-box" class="result-box"></div>
+                <button id="export-btn" class="hidden" onclick="exportReportCSV()" style="background:#475569; margin-top:10px; font-size:0.9rem; padding:12px;">⬇️ Export as CSV</button>
+            </div>
+
+            <!-- ── Activity Attendance Report ── -->
+            <div style="margin-top:28px;padding-top:20px;border-top:2px solid #e2e8f0;">
+                <h4 style="margin:0 0 14px;color:#1c1c1c;">Activity Attendance Report</h4>
+
+                <label>Activity</label>
+                <select id="attendance-activity-select">
+                    <option value="" disabled selected>-- Loading activities... --</option>
+                </select>
+
+                <div class="month-row">
+                    <div>
+                        <label>Start Month</label>
+                        <input type="month" id="attendance-start-month">
+                    </div>
+                    <div>
+                        <label>End Month</label>
+                        <input type="month" id="attendance-end-month">
+                    </div>
+                </div>
+
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+                    <input type="checkbox" id="attendance-boundary-toggle" style="width:auto;margin:0;cursor:pointer;">
+                    <label for="attendance-boundary-toggle" style="margin:0;text-transform:none;letter-spacing:0;font-size:0.95rem;cursor:pointer;">In-boundary members only</label>
+                </div>
+
+                <button id="attendance-run-btn" onclick="runAttendanceReport()">Run Attendance Report</button>
+
+                <div id="attendance-result-container" class="hidden">
+                    <div id="attendance-result-box" class="result-box" style="margin-top:16px;"></div>
+                    <button id="attendance-export-btn" class="hidden" onclick="exportAttendanceCSV()" style="background:#475569;margin-top:10px;font-size:0.9rem;padding:12px;width:100%;">⬇️ Export as CSV</button>
+                </div>
             </div>
         </div>
 
@@ -1196,8 +1230,140 @@
     }
 
     // ─────────────────────────────────────────────
-    //  INIT
+    //  ACTIVITY ATTENDANCE REPORT
     // ─────────────────────────────────────────────
+    let lastAttendanceData = null;
+    let lastAttendanceLabel = '';
+
+    async function loadActivityNames() {
+        const select = document.getElementById('attendance-activity-select');
+        if (!select) return;
+        try {
+            const { data, error } = await supabaseClient.rpc('get_activity_names');
+            if (error) throw error;
+            select.innerHTML = '<option value="" disabled selected>-- Choose an activity --</option>';
+            (data || []).forEach(row => {
+                const opt = document.createElement('option');
+                opt.value = row.activitydisplay;
+                opt.innerText = row.activitydisplay;
+                select.appendChild(opt);
+            });
+        } catch (err) {
+            console.error("Failed to load activity names:", err.message);
+            select.innerHTML = '<option value="" disabled selected>-- Failed to load --</option>';
+        }
+    }
+
+    async function runAttendanceReport() {
+        const btn          = document.getElementById('attendance-run-btn');
+        const exportBtn    = document.getElementById('attendance-export-btn');
+        const activityName = document.getElementById('attendance-activity-select').value;
+        const startM       = document.getElementById('attendance-start-month').value;
+        const endM         = document.getElementById('attendance-end-month').value;
+        const inBoundary   = document.getElementById('attendance-boundary-toggle').checked;
+        const resultBox    = document.getElementById('attendance-result-box');
+        const resultContainer = document.getElementById('attendance-result-container');
+
+        if (!activityName) return showMsg("Please select an activity.", "error");
+        if (!startM || !endM) return showMsg("Please select a date range.", "error");
+        if (startM > endM) return showMsg("Start month cannot be after end month.", "error");
+
+        const start_date = `${startM}-01`;
+        const endParts   = endM.split('-');
+        const lastDay    = new Date(endParts[0], endParts[1], 0).getDate();
+        const end_date   = `${endM}-${lastDay}`;
+
+        btn.innerText  = "Running...";
+        btn.disabled   = true;
+        exportBtn.classList.add('hidden');
+        lastAttendanceData = null;
+        resultContainer.classList.remove('hidden');
+        resultBox.innerHTML = "Processing...";
+
+        try {
+            const { data, error } = await supabaseClient.rpc('get_activity_attendance_report', {
+                activity_name:    activityName,
+                start_date:       start_date,
+                end_date:         end_date,
+                in_boundary_only: inBoundary
+            });
+            if (error) throw error;
+
+            if (!data || data.length === 0) {
+                resultBox.innerHTML = "<p style='text-align:center'>No records found.</p>";
+            } else {
+                let html = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>NRIC</th>
+                                <th>Phone</th>
+                                <th style="text-align:center;">Sessions</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+                data.forEach(row => {
+                    const terminatedBadge = row.is_terminated
+                        ? ` <span style="color:#ef4444;font-size:0.75rem;font-weight:600;">(Terminated)</span>`
+                        : '';
+                    html += `
+                        <tr>
+                            <td>${sanitise(row.fullnamenative)}${terminatedBadge}</td>
+                            <td>${sanitise(row.registrationdocumentnumber)}</td>
+                            <td>${sanitise(row.phone) || 'N/A'}</td>
+                            <td style="text-align:center;">${row.attendance_count}</td>
+                        </tr>`;
+                });
+                html += `</tbody></table>`;
+                resultBox.innerHTML = html;
+
+                // Cache for export
+                lastAttendanceData  = data;
+                lastAttendanceLabel = `${activityName}_${startM}_to_${endM}${inBoundary ? '_InBoundary' : ''}`;
+                exportBtn.classList.remove('hidden');
+            }
+        } catch (err) {
+            console.error("Attendance report failed:", err);
+            showMsg(err.message || "An unexpected error occurred.", "error");
+            resultBox.innerHTML = "Error loading data.";
+        } finally {
+            btn.innerText = "Run Attendance Report";
+            btn.disabled  = false;
+        }
+    }
+
+    function exportAttendanceCSV() {
+        if (!lastAttendanceData || lastAttendanceData.length === 0) return;
+
+        const escape = (val) => {
+            const str = val === null || val === undefined ? '' : String(val);
+            return /[",\n\r]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+        };
+
+        const headers = ['fullnamenative', 'registrationdocumentnumber', 'phone', 'attendance_count', 'is_terminated'];
+        const displayHeaders = ['Name', 'NRIC', 'Phone', 'Sessions', 'Terminated'];
+
+        const csvRows = [
+            displayHeaders.join(','),
+            ...lastAttendanceData.map(row =>
+                headers.map(h => escape(h === 'is_terminated' ? (row[h] ? 'Yes' : 'No') : row[h])).join(',')
+            )
+        ];
+
+        const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const url  = URL.createObjectURL(blob);
+        const safeName = lastAttendanceLabel.replace(/[^a-zA-Z0-9\s_-]/g, '').trim().replace(/\s+/g, '_');
+        const link = document.createElement('a');
+        link.href  = url;
+        link.download = `Attendance_${safeName}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }
+
+    
 
     // Reusable: shows the main app and loads role-based tabs.
     // Called after normal login AND after first-time password setup.
@@ -1218,6 +1384,7 @@
                 document.getElementById('admin-tab-btn').classList.remove('hidden');
                 document.getElementById('etl-tab-btn').classList.remove('hidden');
                 await loadReports();
+                await loadActivityNames();
             }
         } catch (err) {
             console.error("Error during post-login initialization:", err);
