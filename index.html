@@ -184,35 +184,49 @@
         <!-- ── TAB: Activity Reports ── -->
         <div id="activity-section" class="hidden">
             <h3>Activity Reports</h3>
-            <div id="data-coverage" class="data-badge">Select a report and date range</div>
 
-            <label>Report Type</label>
-            <select id="report-select">
-                <option value="" disabled selected>-- Choose a report --</option>
-            </select>
+            <!-- Sub-tab nav -->
+            <div style="display:flex;gap:8px;margin-bottom:18px;">
+                <button id="sub-reports-btn" onclick="switchReportsSubTab('sub-reports')"
+                    style="flex:1;padding:10px;font-size:0.85rem;background:#f59e0b;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:bold;">
+                    📋 Activity Reports
+                </button>
+                <button id="sub-attendance-btn" onclick="switchReportsSubTab('sub-attendance')"
+                    style="flex:1;padding:10px;font-size:0.85rem;background:#e2e8f0;color:#475569;border:none;border-radius:8px;cursor:pointer;font-weight:bold;">
+                    👥 Attendance Report
+                </button>
+            </div>
 
-            <div class="month-row">
-                <div>
-                    <label>Start Month</label>
-                    <input type="month" id="start-month">
+            <!-- Sub-tab: Activity Reports -->
+            <div id="sub-reports">
+                <div id="data-coverage" class="data-badge">Select a report and date range</div>
+
+                <label>Report Type</label>
+                <select id="report-select">
+                    <option value="" disabled selected>-- Choose a report --</option>
+                </select>
+
+                <div class="month-row">
+                    <div>
+                        <label>Start Month</label>
+                        <input type="month" id="start-month">
+                    </div>
+                    <div>
+                        <label>End Month</label>
+                        <input type="month" id="end-month">
+                    </div>
                 </div>
-                <div>
-                    <label>End Month</label>
-                    <input type="month" id="end-month">
+
+                <button id="run-btn" onclick="runReport()">Execute Query</button>
+
+                <div id="result-container" class="hidden">
+                    <div id="result-box" class="result-box"></div>
+                    <button id="export-btn" class="hidden" onclick="exportReportCSV()" style="background:#475569;margin-top:10px;font-size:0.9rem;padding:12px;width:100%;">⬇️ Export as CSV</button>
                 </div>
             </div>
 
-            <button id="run-btn" onclick="runReport()">Execute Query</button>
-
-            <div id="result-container" class="hidden">
-                <div id="result-box" class="result-box"></div>
-                <button id="export-btn" class="hidden" onclick="exportReportCSV()" style="background:#475569; margin-top:10px; font-size:0.9rem; padding:12px;">⬇️ Export as CSV</button>
-            </div>
-
-            <!-- ── Activity Attendance Report ── -->
-            <div style="margin-top:28px;padding-top:20px;border-top:2px solid #e2e8f0;">
-                <h4 style="margin:0 0 14px;color:#1c1c1c;">Activity Attendance Report</h4>
-
+            <!-- Sub-tab: Attendance Report -->
+            <div id="sub-attendance" class="hidden">
                 <label>Activity</label>
                 <select id="attendance-activity-select">
                     <option value="" disabled selected>-- Loading activities... --</option>
@@ -352,7 +366,19 @@
         document.getElementById(btnMap[viewId]).classList.add('active');
     }
 
-    function handleKeyPress(event) { if (event.key === "Enter") handleSearch(); }
+    function switchReportsSubTab(subTabId) {
+        ['sub-reports', 'sub-attendance'].forEach(id => {
+            document.getElementById(id).classList.add('hidden');
+        });
+        document.getElementById(subTabId).classList.remove('hidden');
+
+        const activeStyle  = 'background:#f59e0b;color:white;';
+        const inactiveStyle = 'background:#e2e8f0;color:#475569;';
+        document.getElementById('sub-reports-btn').style.cssText   = subTabId === 'sub-reports'   ? activeStyle : inactiveStyle;
+        document.getElementById('sub-attendance-btn').style.cssText = subTabId === 'sub-attendance' ? activeStyle : inactiveStyle;
+    }
+
+    
 
     function updateDropLabel(inputId, labelId) {
         const f = document.getElementById(inputId).files[0];
