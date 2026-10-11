@@ -263,20 +263,20 @@
             <!-- ── Sub-tab: Inactive Members ── -->
             <div id="sub-inactive" class="hidden">
 
-                <!-- Quick-select: Current FY -->
-                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;margin-bottom:16px;">
-                    <div style="font-size:0.85rem;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Quick Select</div>
-                    <button onclick="runInactiveReportFY()" style="width:100%;padding:11px;background:#6366f1;color:white;border:none;border-radius:8px;font-weight:bold;font-size:0.95rem;cursor:pointer;">
-                        📅 Inactive Since Start of Current FY
-                    </button>
-                    <div id="fy-label" style="text-align:center;font-size:0.8rem;color:#94a3b8;margin-top:6px;"></div>
-                </div>
+                <!-- Period selector -->
+                <label>Inactive Period</label>
+                <select id="inactive-mode-select" onchange="toggleInactiveMode()">
+                    <option value="fy">Since start of current FY</option>
+                    <option value="months">Enter number of months</option>
+                </select>
 
-                <!-- Manual: month input -->
-                <div style="font-size:0.85rem;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Or enter number of months inactive</div>
-                <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;">
+                <!-- FY info label -->
+                <div id="fy-label" style="font-size:0.85rem;color:#6366f1;font-weight:600;margin:-8px 0 14px;"></div>
+
+                <!-- Month input (hidden by default) -->
+                <div id="inactive-months-row" class="hidden" style="display:flex;gap:10px;align-items:center;margin-bottom:14px;">
                     <input type="number" id="inactive-months-input" min="1" max="120" placeholder="e.g. 3"
-                        style="width:120px;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:16px;flex-shrink:0;">
+                        style="width:110px;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:16px;flex-shrink:0;">
                     <span style="color:#64748b;font-size:0.9rem;">months or more without activity</span>
                 </div>
 
@@ -426,14 +426,15 @@
             }
         });
 
-        // Show current FY label when inactive tab is opened
+        // Init inactive tab on open
         if (subTabId === 'sub-inactive') {
             const today = new Date();
             const fyStart = today.getMonth() >= 3
                 ? new Date(today.getFullYear(), 3, 1)
                 : new Date(today.getFullYear() - 1, 3, 1);
             document.getElementById('fy-label').innerText =
-                `Current FY starts: ${fyStart.toLocaleDateString('en-SG', { day:'numeric', month:'long', year:'numeric' })}`;
+                `📅 Current FY: ${fyStart.toLocaleDateString('en-SG', { day:'numeric', month:'long', year:'numeric' })} onwards`;
+            toggleInactiveMode();
         }
     }
 
@@ -1430,15 +1431,26 @@
         return `${fyYear}-04-01`;
     }
 
-    async function runInactiveReportFY() {
-        const cutoff = getFYCutoffDate();
-        await _runInactive(null, cutoff);
+    function toggleInactiveMode() {
+        const mode = document.getElementById('inactive-mode-select').value;
+        const monthsRow = document.getElementById('inactive-months-row');
+        if (mode === 'months') {
+            monthsRow.style.display = 'flex';
+            monthsRow.classList.remove('hidden');
+        } else {
+            monthsRow.style.display = 'none';
+        }
     }
 
     async function runInactiveReport() {
-        const months = parseInt(document.getElementById('inactive-months-input').value);
-        if (!months || months < 1) return showMsg("Please enter a number of months (minimum 1).", "error");
-        await _runInactive(months, null);
+        const mode = document.getElementById('inactive-mode-select').value;
+        if (mode === 'fy') {
+            await _runInactive(null, getFYCutoffDate());
+        } else {
+            const months = parseInt(document.getElementById('inactive-months-input').value);
+            if (!months || months < 1) return showMsg("Please enter a number of months (minimum 1).", "error");
+            await _runInactive(months, null);
+        }
     }
 
     async function _runInactive(months, cutoff) {
@@ -1457,8 +1469,8 @@
 
         const params = { in_boundary_only: inBoundary };
         if (cutoff) {
-            params.cutoff_date    = cutoff;
-            lastInactiveLabel     = `Inactive_since_${cutoff}${inBoundary ? '_InBoundary' : ''}`;
+            params.cutoff_date = cutoff;
+            lastInactiveLabel  = `Inactive_since_FY_${cutoff}${inBoundary ? '_InBoundary' : ''}`;
         } else {
             params.inactive_months = months;
             lastInactiveLabel      = `Inactive_${months}months${inBoundary ? '_InBoundary' : ''}`;
