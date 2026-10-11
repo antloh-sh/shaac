@@ -186,18 +186,22 @@
             <h3>Activity Reports</h3>
 
             <!-- Sub-tab nav -->
-            <div style="display:flex;gap:8px;margin-bottom:18px;">
+            <div style="display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap;">
                 <button id="sub-reports-btn" onclick="switchReportsSubTab('sub-reports')"
-                    style="flex:1;padding:10px;font-size:0.85rem;background:#f59e0b;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:bold;">
+                    style="flex:1;padding:9px 6px;font-size:0.8rem;background:#f59e0b;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:bold;min-width:80px;">
                     📋 Activity Reports
                 </button>
                 <button id="sub-attendance-btn" onclick="switchReportsSubTab('sub-attendance')"
-                    style="flex:1;padding:10px;font-size:0.85rem;background:#e2e8f0;color:#475569;border:none;border-radius:8px;cursor:pointer;font-weight:bold;">
-                    👥 Attendance Report
+                    style="flex:1;padding:9px 6px;font-size:0.8rem;background:#e2e8f0;color:#475569;border:none;border-radius:8px;cursor:pointer;font-weight:bold;min-width:80px;">
+                    👥 Attendance
+                </button>
+                <button id="sub-inactive-btn" onclick="switchReportsSubTab('sub-inactive')"
+                    style="flex:1;padding:9px 6px;font-size:0.8rem;background:#e2e8f0;color:#475569;border:none;border-radius:8px;cursor:pointer;font-weight:bold;min-width:80px;">
+                    💤 Inactive
                 </button>
             </div>
 
-            <!-- Sub-tab: Activity Reports -->
+            <!-- ── Sub-tab: Activity Reports ── -->
             <div id="sub-reports">
                 <div id="data-coverage" class="data-badge">Select a report and date range</div>
 
@@ -221,11 +225,11 @@
 
                 <div id="result-container" class="hidden">
                     <div id="result-box" class="result-box"></div>
-                    <button id="export-btn" class="hidden" onclick="exportReportCSV()" style="background:#475569;margin-top:10px;font-size:0.9rem;padding:12px;width:100%;">⬇️ Export as CSV</button>
+                    <button id="export-btn" class="hidden" onclick="exportReportToCSV()" style="background:#475569;margin-top:10px;font-size:0.9rem;padding:12px;width:100%;">⬇️ Export as CSV</button>
                 </div>
             </div>
 
-            <!-- Sub-tab: Attendance Report -->
+            <!-- ── Sub-tab: Attendance Report ── -->
             <div id="sub-attendance" class="hidden">
                 <label>Activity</label>
                 <select id="attendance-activity-select">
@@ -255,6 +259,40 @@
                     <div id="attendance-result-box" class="result-box" style="margin-top:10px;"></div>
                 </div>
             </div>
+
+            <!-- ── Sub-tab: Inactive Members ── -->
+            <div id="sub-inactive" class="hidden">
+
+                <!-- Quick-select: Current FY -->
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;margin-bottom:16px;">
+                    <div style="font-size:0.85rem;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Quick Select</div>
+                    <button onclick="runInactiveReportFY()" style="width:100%;padding:11px;background:#6366f1;color:white;border:none;border-radius:8px;font-weight:bold;font-size:0.95rem;cursor:pointer;">
+                        📅 Inactive Since Start of Current FY
+                    </button>
+                    <div id="fy-label" style="text-align:center;font-size:0.8rem;color:#94a3b8;margin-top:6px;"></div>
+                </div>
+
+                <!-- Manual: month input -->
+                <div style="font-size:0.85rem;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Or enter number of months inactive</div>
+                <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;">
+                    <input type="number" id="inactive-months-input" min="1" max="120" placeholder="e.g. 3"
+                        style="width:120px;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:16px;flex-shrink:0;">
+                    <span style="color:#64748b;font-size:0.9rem;">months or more without activity</span>
+                </div>
+
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+                    <input type="checkbox" id="inactive-boundary-toggle" style="width:auto;margin:0;cursor:pointer;">
+                    <label for="inactive-boundary-toggle" style="margin:0;text-transform:none;letter-spacing:0;font-size:0.95rem;cursor:pointer;">In-boundary members only</label>
+                </div>
+
+                <button id="inactive-run-btn" onclick="runInactiveReport()">Run Inactive Report</button>
+
+                <div id="inactive-result-container" class="hidden">
+                    <button id="inactive-export-btn" class="hidden" onclick="exportInactiveCSV()" style="background:#475569;margin-top:10px;font-size:0.9rem;padding:12px;width:100%;">⬇️ Export as CSV</button>
+                    <div id="inactive-result-box" class="result-box" style="margin-top:10px;"></div>
+                </div>
+            </div>
+
         </div>
 
         <!-- ── TAB: Admin / ETL ── -->
@@ -367,18 +405,39 @@
     }
 
     function switchReportsSubTab(subTabId) {
-        ['sub-reports', 'sub-attendance'].forEach(id => {
+        ['sub-reports','sub-attendance','sub-inactive'].forEach(id => {
             document.getElementById(id).classList.add('hidden');
         });
         document.getElementById(subTabId).classList.remove('hidden');
 
-        const activeStyle  = 'background:#f59e0b;color:white;';
-        const inactiveStyle = 'background:#e2e8f0;color:#475569;';
-        document.getElementById('sub-reports-btn').style.cssText   = subTabId === 'sub-reports'   ? activeStyle : inactiveStyle;
-        document.getElementById('sub-attendance-btn').style.cssText = subTabId === 'sub-attendance' ? activeStyle : inactiveStyle;
+        const btns = {
+            'sub-reports':    'sub-reports-btn',
+            'sub-attendance': 'sub-attendance-btn',
+            'sub-inactive':   'sub-inactive-btn'
+        };
+        Object.entries(btns).forEach(([tab, btnId]) => {
+            const btn = document.getElementById(btnId);
+            if (tab === subTabId) {
+                btn.style.background = tab === 'sub-inactive' ? '#6366f1' : '#f59e0b';
+                btn.style.color = 'white';
+            } else {
+                btn.style.background = '#e2e8f0';
+                btn.style.color = '#475569';
+            }
+        });
+
+        // Show current FY label when inactive tab is opened
+        if (subTabId === 'sub-inactive') {
+            const today = new Date();
+            const fyStart = today.getMonth() >= 3
+                ? new Date(today.getFullYear(), 3, 1)
+                : new Date(today.getFullYear() - 1, 3, 1);
+            document.getElementById('fy-label').innerText =
+                `Current FY starts: ${fyStart.toLocaleDateString('en-SG', { day:'numeric', month:'long', year:'numeric' })}`;
+        }
     }
 
-    
+    function handleKeyPress(event) { if (event.key === "Enter") handleSearch(); }
 
     function updateDropLabel(inputId, labelId) {
         const f = document.getElementById(inputId).files[0];
@@ -547,13 +606,11 @@
         const { data, error } = await supabaseClient.rpc('get_member_activities', { reg_no: regNo });
         if (error) { container.innerHTML = `<p style="color:#ef4444;">Error: ${sanitise(error.message)}</p>`; return; }
         if (!data || data.length === 0) { container.innerHTML = "<p>No activities found.</p>"; return; }
-        container.innerHTML = `<div style="font-weight:bold;color:#0ea5e9;">🏃 Activities (${data.length}):</div>
-            <div style="max-height:210px;overflow-y:auto;margin-top:4px;">` +
+        container.innerHTML = `<div style="font-weight:bold;color:#0ea5e9;">🏃 Activities (${data.length}):</div>` +
             data.map(a => `
                 <div style="font-size:1rem;padding:8px 0;border-bottom:1px solid #eee;">
                     ${sanitise(a.activitydatedisplay)} &nbsp;·&nbsp; ${sanitise(a.activitydisplay)}
-                </div>`).join('') +
-            `</div>`;
+                </div>`).join('');
     }
 
     async function fetchHousehold(regNo) {
@@ -1256,7 +1313,7 @@
     }
 
     // ─────────────────────────────────────────────
-    //  ACTIVITY ATTENDANCE REPORT
+    //  ATTENDANCE REPORT
     // ─────────────────────────────────────────────
     let lastAttendanceData = null;
     let lastAttendanceLabel = '';
@@ -1299,8 +1356,8 @@
         const lastDay    = new Date(endParts[0], endParts[1], 0).getDate();
         const end_date   = `${endM}-${lastDay}`;
 
-        btn.innerText  = "Running...";
-        btn.disabled   = true;
+        btn.innerText = "Running...";
+        btn.disabled  = true;
         exportBtn.classList.add('hidden');
         lastAttendanceData = null;
         resultContainer.classList.remove('hidden');
@@ -1308,50 +1365,32 @@
 
         try {
             const { data, error } = await supabaseClient.rpc('get_activity_attendance_report', {
-                activity_name:    activityName,
-                start_date:       start_date,
-                end_date:         end_date,
-                in_boundary_only: inBoundary
+                activity_name: activityName, start_date, end_date, in_boundary_only: inBoundary
             });
             if (error) throw error;
 
             if (!data || data.length === 0) {
                 resultBox.innerHTML = "<p style='text-align:center'>No records found.</p>";
             } else {
-                let html = `
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>NRIC</th>
-                                <th>Phone</th>
-                                <th style="text-align:center;">Sessions</th>
-                            </tr>
-                        </thead>
-                        <tbody>`;
+                let html = `<table><thead><tr><th>Name</th><th>NRIC</th><th>Phone</th><th style="text-align:center;">Sessions</th></tr></thead><tbody>`;
                 data.forEach(row => {
-                    const terminatedBadge = row.is_terminated
-                        ? ` <span style="color:#ef4444;font-size:0.75rem;font-weight:600;">(Terminated)</span>`
-                        : '';
-                    html += `
-                        <tr>
-                            <td>${sanitise(row.fullnamenative)}${terminatedBadge}</td>
-                            <td>${sanitise(row.registrationdocumentnumber)}</td>
-                            <td>${sanitise(row.phone) || 'N/A'}</td>
-                            <td style="text-align:center;">${row.attendance_count}</td>
-                        </tr>`;
+                    const badge = row.is_terminated ? ` <span style="color:#ef4444;font-size:0.75rem;font-weight:600;">(Terminated)</span>` : '';
+                    html += `<tr>
+                        <td>${sanitise(row.fullnamenative)}${badge}</td>
+                        <td>${sanitise(row.registrationdocumentnumber)}</td>
+                        <td>${sanitise(row.phone) || 'N/A'}</td>
+                        <td style="text-align:center;">${row.attendance_count}</td>
+                    </tr>`;
                 });
                 html += `</tbody></table>`;
                 resultBox.innerHTML = html;
-
-                // Cache for export
                 lastAttendanceData  = data;
                 lastAttendanceLabel = `${activityName}_${startM}_to_${endM}${inBoundary ? '_InBoundary' : ''}`;
                 exportBtn.classList.remove('hidden');
             }
         } catch (err) {
             console.error("Attendance report failed:", err);
-            showMsg(err.message || "An unexpected error occurred.", "error");
+            showMsg(sanitise(err.message) || "An unexpected error occurred.", "error");
             resultBox.innerHTML = "Error loading data.";
         } finally {
             btn.innerText = "Run Attendance Report";
@@ -1361,35 +1400,126 @@
 
     function exportAttendanceCSV() {
         if (!lastAttendanceData || lastAttendanceData.length === 0) return;
-
         const escape = (val) => {
             const str = val === null || val === undefined ? '' : String(val);
             return /[",\n\r]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
         };
-
-        const headers = ['fullnamenative', 'registrationdocumentnumber', 'phone', 'attendance_count', 'is_terminated'];
-        const displayHeaders = ['Name', 'NRIC', 'Phone', 'Sessions', 'Terminated'];
-
-        const csvRows = [
-            displayHeaders.join(','),
-            ...lastAttendanceData.map(row =>
-                headers.map(h => escape(h === 'is_terminated' ? (row[h] ? 'Yes' : 'No') : row[h])).join(',')
-            )
-        ];
-
-        const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const headers = ['fullnamenative','registrationdocumentnumber','phone','attendance_count','is_terminated'];
+        const display = ['Name','NRIC','Phone','Sessions','Terminated'];
+        const rows = [display.join(','), ...lastAttendanceData.map(row =>
+            headers.map(h => escape(h === 'is_terminated' ? (row[h] ? 'Yes' : 'No') : row[h])).join(',')
+        )];
+        const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
         const url  = URL.createObjectURL(blob);
-        const safeName = lastAttendanceLabel.replace(/[^a-zA-Z0-9\s_-]/g, '').trim().replace(/\s+/g, '_');
+        const safe = lastAttendanceLabel.replace(/[^a-zA-Z0-9\s_-]/g,'').trim().replace(/\s+/g,'_');
         const link = document.createElement('a');
-        link.href  = url;
-        link.download = `Attendance_${safeName}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+        link.href = url; link.download = `Attendance_${safe}.csv`;
+        document.body.appendChild(link); link.click();
+        document.body.removeChild(link); URL.revokeObjectURL(url);
     }
 
-    
+    // ─────────────────────────────────────────────
+    //  INACTIVE MEMBERS REPORT
+    // ─────────────────────────────────────────────
+    let lastInactiveData  = null;
+    let lastInactiveLabel = '';
+
+    function getFYCutoffDate() {
+        const today = new Date();
+        const fyYear = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
+        return `${fyYear}-04-01`;
+    }
+
+    async function runInactiveReportFY() {
+        const cutoff = getFYCutoffDate();
+        await _runInactive(null, cutoff);
+    }
+
+    async function runInactiveReport() {
+        const months = parseInt(document.getElementById('inactive-months-input').value);
+        if (!months || months < 1) return showMsg("Please enter a number of months (minimum 1).", "error");
+        await _runInactive(months, null);
+    }
+
+    async function _runInactive(months, cutoff) {
+        const btn         = document.getElementById('inactive-run-btn');
+        const exportBtn   = document.getElementById('inactive-export-btn');
+        const inBoundary  = document.getElementById('inactive-boundary-toggle').checked;
+        const resultBox   = document.getElementById('inactive-result-box');
+        const resultContainer = document.getElementById('inactive-result-container');
+
+        btn.innerText = "Running...";
+        btn.disabled  = true;
+        exportBtn.classList.add('hidden');
+        lastInactiveData = null;
+        resultContainer.classList.remove('hidden');
+        resultBox.innerHTML = "Processing...";
+
+        const params = { in_boundary_only: inBoundary };
+        if (cutoff) {
+            params.cutoff_date    = cutoff;
+            lastInactiveLabel     = `Inactive_since_${cutoff}${inBoundary ? '_InBoundary' : ''}`;
+        } else {
+            params.inactive_months = months;
+            lastInactiveLabel      = `Inactive_${months}months${inBoundary ? '_InBoundary' : ''}`;
+        }
+
+        try {
+            const { data, error } = await supabaseClient.rpc('get_inactive_members', params);
+            if (error) throw error;
+
+            if (!data || data.length === 0) {
+                resultBox.innerHTML = "<p style='text-align:center'>No inactive members found.</p>";
+            } else {
+                let html = `<div style="font-size:0.85rem;color:#64748b;margin-bottom:8px;">${data.length} member${data.length === 1 ? '' : 's'} found</div>`;
+                html += `<table><thead><tr><th>Name</th><th>NRIC</th><th>Phone</th><th style="text-align:center;">Last Activity</th><th style="text-align:center;">Total Sessions</th></tr></thead><tbody>`;
+                data.forEach(row => {
+                    html += `<tr>
+                        <td>${sanitise(row.fullnamenative)}</td>
+                        <td>${sanitise(row.registrationdocumentnumber)}</td>
+                        <td>${sanitise(row.phone) || 'N/A'}</td>
+                        <td style="text-align:center;">${row.last_activity_date ? sanitise(row.last_activity_date) : '<span style="color:#ef4444;">Never</span>'}</td>
+                        <td style="text-align:center;">${row.total_sessions}</td>
+                    </tr>`;
+                });
+                html += `</tbody></table>`;
+                resultBox.innerHTML = html;
+                lastInactiveData = data;
+                exportBtn.classList.remove('hidden');
+            }
+        } catch (err) {
+            console.error("Inactive report failed:", err);
+            showMsg(sanitise(err.message) || "An unexpected error occurred.", "error");
+            resultBox.innerHTML = "Error loading data.";
+        } finally {
+            btn.innerText = "Run Inactive Report";
+            btn.disabled  = false;
+        }
+    }
+
+    function exportInactiveCSV() {
+        if (!lastInactiveData || lastInactiveData.length === 0) return;
+        const escape = (val) => {
+            const str = val === null || val === undefined ? '' : String(val);
+            return /[",\n\r]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+        };
+        const headers = ['fullnamenative','registrationdocumentnumber','phone','last_activity_date','total_sessions'];
+        const display = ['Name','NRIC','Phone','Last Activity Date','Total Sessions'];
+        const rows = [display.join(','), ...lastInactiveData.map(row =>
+            headers.map(h => escape(row[h] ?? (h === 'last_activity_date' ? 'Never' : ''))).join(',')
+        )];
+        const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const url  = URL.createObjectURL(blob);
+        const safe = lastInactiveLabel.replace(/[^a-zA-Z0-9\s_-]/g,'').trim().replace(/\s+/g,'_');
+        const link = document.createElement('a');
+        link.href = url; link.download = `${safe}.csv`;
+        document.body.appendChild(link); link.click();
+        document.body.removeChild(link); URL.revokeObjectURL(url);
+    }
+
+    // ─────────────────────────────────────────────
+    //  INIT
+    // ─────────────────────────────────────────────
 
     // Reusable: shows the main app and loads role-based tabs.
     // Called after normal login AND after first-time password setup.
