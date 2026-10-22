@@ -166,6 +166,13 @@
     <div id="main-app" class="hidden">
 
         <!-- Tab navigation -->
+        <!-- Sync status bar -->
+        <div id="sync-status-bar" style="display:flex;gap:8px;margin-bottom:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;font-size:0.82rem;color:#475569;flex-wrap:wrap;">
+            <div>👥 <strong>Members:</strong> <span id="sync-members-date" style="color:#1c1c1c;">Loading...</span></div>
+            <div style="color:#cbd5e1;">·</div>
+            <div>🏃 <strong>Latest Activity:</strong> <span id="sync-activities-date" style="color:#1c1c1c;">Loading...</span></div>
+        </div>
+
         <div id="nav-tabs" class="tab-nav">
             <button id="search-tab-btn"   class="active"  onclick="switchTab('search-section')">🔍 Search</button>
             <button id="activity-tab-btn" class="hidden"  onclick="switchTab('activity-section')">📊 Reports</button>
@@ -1067,6 +1074,7 @@
                 results.push(`Family Members ✓ (${rows.length} synced)`);
             }
             showMsg(`Sync Successful: ${results.join(" | ")}`, "success");
+            loadSyncMetadata();
         } catch (e) {
             showMsg(e.message, "error");
         } finally {
@@ -1303,6 +1311,7 @@
             if (csvErrors.length > 0)    skipped.push(`${csvErrors.length} CSV parse warnings`);
             if (skipped.length > 0)      summary += ` Skipped: ${skipped.join(', ')}.`;
             showEtlStatus(summary);
+            loadSyncMetadata();
 
         } catch (err) {
             console.error(err);
@@ -1535,11 +1544,32 @@
 
     // Reusable: shows the main app and loads role-based tabs.
     // Called after normal login AND after first-time password setup.
+    async function loadSyncMetadata() {
+        try {
+            const { data, error } = await supabaseClient.rpc('get_sync_metadata');
+            if (error) throw error;
+            const fmt = (dateStr) => {
+                if (!dateStr) return 'Not yet synced';
+                const d = new Date(dateStr);
+                return d.toLocaleDateString('en-SG', { day: 'numeric', month: 'long', year: 'numeric' });
+            };
+            const members    = data?.find(r => r.key === 'members');
+            const activities = data?.find(r => r.key === 'activities');
+            document.getElementById('sync-members-date').innerText   = fmt(members?.last_sync);
+            document.getElementById('sync-activities-date').innerText = fmt(activities?.last_sync);
+        } catch (err) {
+            console.error("Failed to load sync metadata:", err.message);
+            document.getElementById('sync-members-date').innerText   = 'Unavailable';
+            document.getElementById('sync-activities-date').innerText = 'Unavailable';
+        }
+    }
+
     async function proceedToMainApp(userId) {
         document.getElementById('login-section').classList.add('hidden');
         document.getElementById('title').classList.add('hidden');
         document.getElementById('main-app').classList.remove('hidden');
         switchTab('search-section');
+        loadSyncMetadata(); // non-blocking — runs in background
 
         try {
             const { data: profile, error: profileError } = await supabaseClient
