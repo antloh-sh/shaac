@@ -223,7 +223,7 @@
                 <div class="month-row">
                     <div>
                         <label>Start Month</label>
-                        <input type="month" id="start-month">
+                        <input type="month" id="start-month" onchange="document.getElementById('end-month').min = this.value; if(document.getElementById('end-month').value && document.getElementById('end-month').value < this.value) document.getElementById('end-month').value = this.value;">
                     </div>
                     <div>
                         <label>End Month</label>
@@ -249,7 +249,7 @@
                 <div class="month-row">
                     <div>
                         <label>Start Month</label>
-                        <input type="month" id="attendance-start-month">
+                        <input type="month" id="attendance-start-month" onchange="document.getElementById('attendance-end-month').min = this.value; if(document.getElementById('attendance-end-month').value && document.getElementById('attendance-end-month').value < this.value) document.getElementById('attendance-end-month').value = this.value;">
                     </div>
                     <div>
                         <label>End Month</label>
