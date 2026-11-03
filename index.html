@@ -223,7 +223,7 @@
                 <div class="month-row">
                     <div>
                         <label>Start Month</label>
-                        <input type="month" id="start-month" onchange="document.getElementById('end-month').min = this.value; if(document.getElementById('end-month').value && document.getElementById('end-month').value < this.value) document.getElementById('end-month').value = this.value;">
+                        <input type="month" id="start-month">
                     </div>
                     <div>
                         <label>End Month</label>
@@ -249,7 +249,7 @@
                 <div class="month-row">
                     <div>
                         <label>Start Month</label>
-                        <input type="month" id="attendance-start-month" onchange="document.getElementById('attendance-end-month').min = this.value; if(document.getElementById('attendance-end-month').value && document.getElementById('attendance-end-month').value < this.value) document.getElementById('attendance-end-month').value = this.value;">
+                        <input type="month" id="attendance-start-month">
                     </div>
                     <div>
                         <label>End Month</label>
@@ -1542,6 +1542,79 @@
     }
 
     // ─────────────────────────────────────────────
+    //  MONTH INPUT COMPATIBILITY (Firefox desktop has no <input type="month">)
+    // ─────────────────────────────────────────────
+    function supportsMonthInput() {
+        const probe = document.createElement('input');
+        probe.setAttribute('type', 'month');
+        return probe.type === 'month';   // unsupported browsers fall back to 'text'
+    }
+
+    // Replaces an unsupported month input with Month + Year dropdowns.
+    // The original <input> stays in the DOM (type=hidden) holding "YYYY-MM",
+    // so all existing code reading .value keeps working unchanged.
+    function buildMonthSelects(input) {
+        const names = ['January','February','March','April','May','June',
+                       'July','August','September','October','November','December'];
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'display:flex;gap:6px;';
+
+        const monthSel = document.createElement('select');
+        monthSel.style.cssText = 'flex:1;min-width:0;padding-left:10px;padding-right:6px;';
+        monthSel.innerHTML = '<option value="">Month</option>' +
+            names.map((n, i) => `<option value="${String(i + 1).padStart(2, '0')}">${n}</option>`).join('');
+
+        const yearSel = document.createElement('select');
+        yearSel.style.cssText = 'flex:1;min-width:0;padding-left:10px;padding-right:6px;';
+        const thisYear = new Date().getFullYear();
+        let yearOpts = '<option value="">Year</option>';
+        for (let y = thisYear + 1; y >= thisYear - 6; y--) yearOpts += `<option value="${y}">${y}</option>`;
+        yearSel.innerHTML = yearOpts;
+
+        const sync = () => {
+            input.value = (monthSel.value && yearSel.value) ? `${yearSel.value}-${monthSel.value}` : '';
+            input.dispatchEvent(new Event('change'));
+        };
+        monthSel.addEventListener('change', sync);
+        yearSel.addEventListener('change', sync);
+
+        input.type = 'hidden';
+        input.parentNode.insertBefore(wrap, input);
+        wrap.appendChild(monthSel);
+        wrap.appendChild(yearSel);
+        input._monthSel = monthSel;
+        input._yearSel  = yearSel;
+    }
+
+    // Sets a month value on either a native or a fallback (select-based) field.
+    function setMonthValue(input, val) {
+        input.value = val;
+        if (input._monthSel && input._yearSel) {
+            const [y, m] = (val || '-').split('-');
+            input._yearSel.value  = y || '';
+            input._monthSel.value = m || '';
+        }
+    }
+
+    // Wires start/end pairs: builds fallbacks if needed and keeps end >= start.
+    function initMonthInputs() {
+        const nativeOk = supportsMonthInput();
+        [['start-month', 'end-month'], ['attendance-start-month', 'attendance-end-month']]
+            .forEach(([startId, endId]) => {
+                const startEl = document.getElementById(startId);
+                const endEl   = document.getElementById(endId);
+                if (!startEl || !endEl) return;
+                if (!nativeOk) { buildMonthSelects(startEl); buildMonthSelects(endEl); }
+                startEl.addEventListener('change', () => {
+                    endEl.min = startEl.value || '';
+                    if (startEl.value && endEl.value && endEl.value < startEl.value) {
+                        setMonthValue(endEl, startEl.value);
+                    }
+                });
+            });
+    }
+
+    // ─────────────────────────────────────────────
     //  INIT
     // ─────────────────────────────────────────────
 
@@ -1594,6 +1667,7 @@
     }
 
     window.onload = async () => {
+        initMonthInputs();
         resetIdleTimer(); // from auth-config.js
 
         // FIX #9: handle token expiry and forced sign-out
