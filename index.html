@@ -1642,6 +1642,10 @@
 
     async function proceedToMainApp(userId) {
         document.getElementById('login-section').classList.add('hidden');
+        document.getElementById('reset-section').classList.add('hidden');
+        // Hide the set-password panel (shown for invite / recovery flows) and wipe the typed password
+        document.getElementById('password-update-section').classList.add('hidden');
+        document.getElementById('new-password').value = '';
         document.getElementById('title').classList.add('hidden');
         document.getElementById('main-app').classList.remove('hidden');
         switchTab('search-section');
