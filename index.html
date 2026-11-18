@@ -1715,7 +1715,9 @@
                     return;
                 }
 
-                if (profile?.has_set_password === false) {
+                // Fail-closed: anything other than an explicit true (false, NULL, missing)
+                // sends the user to set a password before any app content loads.
+                if (profile?.has_set_password !== true) {
                     // Block all app content until a real password is set
                     isRecovering = true;
                     showView('password-update-section');
