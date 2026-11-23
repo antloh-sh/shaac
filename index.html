@@ -79,8 +79,8 @@
         .secondary-btn { background: #f1f5f9; color: #475569; font-size: 0.95rem; padding: 12px; }
 
         /* ── Tab nav ── */
-        .tab-nav { display: flex; gap: 8px; margin-bottom: 20px; }
-        .tab-nav button { margin-top: 0; flex: 1; font-size: 0.85rem; padding: 11px 6px; color: white; }
+        .tab-nav { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+        .tab-nav button { margin-top: 0; flex: 1 1 28%; font-size: 0.85rem; padding: 11px 6px; color: white; }
         #search-tab-btn  { background: var(--grey); }
         #search-tab-btn.active  { background: var(--primary); }
         #activity-tab-btn { background: var(--grey); }
@@ -89,6 +89,10 @@
         #admin-tab-btn.active   { background: var(--admin); }
         #etl-tab-btn     { background: var(--grey); }
         #etl-tab-btn.active     { background: var(--etl); }
+        #register-tab-btn { background: var(--grey); }
+        #register-tab-btn.active { background: #8b5cf6; }
+        #events-tab-btn { background: var(--grey); }
+        #events-tab-btn.active { background: #ec4899; }
 
         /* ── File picker rows (Activity ETL) ── */
         .pick-row { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
@@ -96,6 +100,29 @@
         .pick-btn:hover { background: #e5e7eb; }
         .filename-box { flex-grow: 1; padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.85rem; color: #9ca3af; background: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .filename-box.has-file { color: #1f2937; border-color: #0ea5e9; background: #f0f9ff; }
+
+        /* ── Events / Registration ── */
+        textarea { width: 100%; padding: 14px; margin: 4px 0 14px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; font-family: inherit; background: #fff; resize: vertical; }
+        .panel { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; margin-bottom: 16px; }
+        .form-row { display: flex; gap: 10px; }
+        .form-row > div { flex: 1; min-width: 0; }
+        .chip { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 700; margin-right: 4px; }
+        .chip-registered { background: #dcfce7; color: #16a34a; }
+        .chip-waitlisted { background: #fef3c7; color: #b45309; }
+        .chip-cancelled  { background: #fee2e2; color: #b91c1c; }
+        .chip-joined     { background: #dbeafe; color: #1d4ed8; }
+        .chip-pending    { background: #fef3c7; color: #b45309; }
+        .chip-terminated { background: #fee2e2; color: #b91c1c; }
+        .chip-none       { background: #e2e8f0; color: #475569; }
+        .chip-boundary   { background: #fef9c3; color: #a16207; border: 1px solid #fde047; }
+        .reg-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+        .reg-card.highlight { outline: 3px solid #8b5cf6; }
+        .resident-card { cursor: pointer; }
+        .resident-card:hover { border-color: #8b5cf6; background: #f5f3ff; }
+        .sub { color: #64748b; font-size: 0.9rem; margin-top: 2px; }
+        .reg-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+        .reg-actions button { width: auto; padding: 8px 14px; font-size: 0.85rem; margin-top: 0; }
+        .message.warn { background: #fef9c3; color: #a16207; }
 
         /* ── Member search ── */
         .result-item { background: #f8fafc; padding: 20px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #e2e8f0; }
@@ -178,9 +205,11 @@
 
         <div id="nav-tabs" class="tab-nav">
             <button id="search-tab-btn"   class="active"  onclick="switchTab('search-section')">🔍 Search</button>
+            <button id="register-tab-btn" class="hidden"  onclick="switchTab('register-section')">📝 Registration</button>
             <button id="activity-tab-btn" class="hidden"  onclick="switchTab('activity-section')">📊 Reports</button>
             <button id="admin-tab-btn"    class="hidden"  onclick="switchTab('etl-section')">⚙️ Members</button>
             <button id="etl-tab-btn"      class="hidden"  onclick="switchTab('activities-etl-section')">📥 Activities</button>
+            <button id="events-tab-btn"   class="hidden"  onclick="switchTab('events-section')">🎉 Events</button>
         </div>
 
         <!-- ── TAB: Member Search ── -->
@@ -328,6 +357,17 @@
             </div>
 
             <button id="importBtn" onclick="runRPCImportBoth()" style="background:#16a34a;">Upload &amp; Sync</button>
+
+            <div style="margin-top:28px;padding-top:20px;border-top:2px solid #e2e8f0;">
+                <h3 style="font-size:1.15rem;">👥 Residents List (for Events)</h3>
+                <p style="color:#64748b; font-size:0.95rem; margin:0 0 14px;">Used by Event Registration search. Importing <strong>replaces the entire list</strong>; registrations for past events are not affected.</p>
+                <div class="drop-zone" onclick="document.getElementById('csvResidents').click()">
+                    <span id="residentsFileDisplay">Tap to select DataListing-AACMembership CSV</span>
+                    <input type="file" id="csvResidents" class="hidden" accept=".csv" onchange="updateDropLabel('csvResidents','residentsFileDisplay')">
+                </div>
+                <button id="residentsImportBtn" onclick="runResidentsImport()" style="background:#dc2626;">Replace Residents List</button>
+            </div>
+
         </div>
 
         <!-- ── TAB: Activities ETL (admin only) ── -->
@@ -358,6 +398,109 @@
 
             <button id="etlSyncBtn" onclick="runActivityETL()" style="background:#0ea5e9;">Transform &amp; Sync</button>
             <div id="etl-status" class="hidden" style="margin-top:12px; padding:12px; border-radius:8px; font-size:0.9rem; text-align:center;"></div>
+        </div>
+
+        <!-- ── TAB: Event Registration (staff + admin) ── -->
+        <div id="register-section" class="hidden">
+            <h3>📝 Event Registration</h3>
+
+            <label>Event</label>
+            <select id="reg-event-select" onchange="onRegEventChange()">
+                <option value="" disabled selected>-- Loading events... --</option>
+            </select>
+            <div style="display:flex;align-items:center;gap:10px;margin:-6px 0 14px;">
+                <input type="checkbox" id="reg-include-past" style="width:auto;margin:0;cursor:pointer;" onchange="loadRegistrationEvents()">
+                <label for="reg-include-past" style="margin:0;text-transform:none;letter-spacing:0;font-size:0.9rem;cursor:pointer;">Include past events (view / export only)</label>
+            </div>
+            <div id="reg-event-info" class="panel hidden"></div>
+
+            <div id="reg-workarea" class="hidden">
+                <div id="reg-entry-box">
+                    <label>Find a resident</label>
+                    <input type="text" id="reg-search-input" placeholder="Name, NRIC or phone number" maxlength="100" autocomplete="off">
+                    <button onclick="searchResidentsForEvent()">Search residents</button>
+                    <div id="reg-search-results" style="margin-top:14px;"></div>
+
+                    <div class="panel" id="reg-form-box" style="margin-top:16px;">
+                        <h4 id="reg-form-title" style="margin:0 0 6px;">Registration details</h4>
+                        <div id="reg-edit-banner" class="message warn hidden" style="margin:0 0 10px;"></div>
+                        <div id="reg-membership-line" class="hidden" style="margin-bottom:8px;"></div>
+
+                        <label>NRIC</label>
+                        <input type="text" id="reg-nric" maxlength="9" autocomplete="off" autocapitalize="characters" placeholder="e.g. S1234567D">
+                        <div id="reg-nric-hint" class="sub hidden" style="margin:-8px 0 12px;">Manual entry: the NRIC checksum is verified when you register.</div>
+
+                        <label>Full name</label>
+                        <input type="text" id="reg-fullname" maxlength="150" autocomplete="off">
+
+                        <div class="form-row">
+                            <div><label>Date of birth</label><input type="date" id="reg-dob"></div>
+                            <div><label>Age</label><input type="text" id="reg-age" readonly placeholder="-"></div>
+                        </div>
+                        <div class="form-row">
+                            <div><label>Gender</label>
+                                <select id="reg-gender"><option value="">--</option><option>Male</option><option>Female</option></select></div>
+                            <div><label>Contact number</label><input type="tel" id="reg-contact" maxlength="30"></div>
+                        </div>
+                        <div class="form-row">
+                            <div><label>Postal code</label><input type="text" id="reg-postal" maxlength="10"></div>
+                            <div><label>Dietary</label>
+                                <select id="reg-dietary"><option>Regular</option><option>Halal</option><option>Vegetarian</option><option>Others</option></select></div>
+                        </div>
+                        <label>Comments</label>
+                        <textarea id="reg-comments" rows="2" maxlength="500"></textarea>
+
+                        <button id="reg-submit-btn" onclick="submitRegistration()" style="background:#8b5cf6;">Register</button>
+                        <button class="secondary-btn" onclick="resetRegistrationForm()">Clear form</button>
+                        <div id="reg-feedback" class="message hidden"></div>
+                        <div id="reg-duplicate-panel" class="message warn hidden" style="text-align:left;"></div>
+                    </div>
+                </div>
+
+                <div id="reg-list-section" style="margin-top:20px;">
+                    <h4 style="margin:0 0 8px;">Registrations</h4>
+                    <div id="reg-summary" class="sub" style="margin-bottom:8px;"></div>
+                    <button id="reg-export-btn" class="hidden" onclick="exportEventRegistrationsCSV()" style="background:#475569;font-size:0.9rem;padding:12px;">⬇️ Export as CSV</button>
+                    <div id="reg-list" style="margin-top:12px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── TAB: Events (admin only) ── -->
+        <div id="events-section" class="hidden">
+            <h3>🎉 Events</h3>
+            <div class="panel">
+                <h4 id="ev-form-title" style="margin:0 0 6px;">New event</h4>
+                <label>Description</label>
+                <input type="text" id="ev-description" maxlength="150" autocomplete="off">
+                <label>Date</label>
+                <input type="date" id="ev-date">
+                <div class="form-row">
+                    <div><label>Start time</label><input type="time" id="ev-start"></div>
+                    <div><label>End time</label><input type="time" id="ev-end"></div>
+                </div>
+                <label>Venue</label>
+                <input type="text" id="ev-venue" maxlength="150" autocomplete="off">
+                <label>Suitable for</label>
+                <div id="ev-suitable-box" style="margin-bottom:14px;"></div>
+                <label>Note</label>
+                <textarea id="ev-note" rows="2" maxlength="500"></textarea>
+                <label>Capacity</label>
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+                    <input type="checkbox" id="ev-unlimited" checked style="width:auto;margin:0;cursor:pointer;" onchange="toggleCapacityInput()">
+                    <label for="ev-unlimited" style="margin:0;text-transform:none;letter-spacing:0;font-size:0.95rem;cursor:pointer;">Unlimited</label>
+                </div>
+                <input type="number" id="ev-capacity" min="1" max="998" placeholder="Maximum number of attendees" class="hidden">
+                <button id="ev-save-btn" onclick="saveEvent()" style="background:#ec4899;">Save event</button>
+                <button id="ev-cancel-edit-btn" class="secondary-btn hidden" onclick="resetEventForm()">Cancel edit</button>
+                <div id="ev-feedback" class="message hidden"></div>
+            </div>
+
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+                <input type="checkbox" id="ev-show-past" style="width:auto;margin:0;cursor:pointer;" onchange="loadEventsAdmin()">
+                <label for="ev-show-past" style="margin:0;text-transform:none;letter-spacing:0;font-size:0.95rem;cursor:pointer;">Show past events</label>
+            </div>
+            <div id="events-list"></div>
         </div>
 
         <button onclick="signOut()" class="logout-btn">Sign Out</button>
@@ -395,23 +538,30 @@
 
     function showView(sectionId) {
         ['login-section','reset-section','password-update-section',
-         'search-section','activity-section','etl-section','activities-etl-section']
+         'search-section','activity-section','etl-section','activities-etl-section','register-section','events-section']
             .forEach(id => { const el = document.getElementById(id); if (el) el.classList.add('hidden'); });
         document.getElementById(sectionId).classList.remove('hidden');
     }
 
     function switchTab(viewId) {
-        ['search-section','activity-section','etl-section','activities-etl-section']
+        ['search-section','activity-section','etl-section','activities-etl-section','register-section','events-section']
             .forEach(id => { const el = document.getElementById(id); if (el) el.classList.add('hidden'); });
         document.getElementById(viewId).classList.remove('hidden');
+
         document.querySelectorAll('.tab-nav button').forEach(b => b.classList.remove('active'));
         const btnMap = {
             'search-section':         'search-tab-btn',
             'activity-section':       'activity-tab-btn',
             'etl-section':            'admin-tab-btn',
-            'activities-etl-section': 'etl-tab-btn'
+            'activities-etl-section': 'etl-tab-btn',
+            'register-section':       'register-tab-btn',
+            'events-section':         'events-tab-btn'
         };
         document.getElementById(btnMap[viewId]).classList.add('active');
+
+        // refresh live data whenever these tabs are opened
+        if (viewId === 'register-section') loadRegistrationEvents();
+        if (viewId === 'events-section')   loadEventsAdmin();
     }
 
     function switchReportsSubTab(subTabId) {
@@ -452,8 +602,12 @@
 
     function updateDropLabel(inputId, labelId) {
         const f = document.getElementById(inputId).files[0];
-        const fallback = labelId === 'membershipFileDisplay' ? 'Tap to select AACMemberDetails CSV' : 'Tap to select FamilyMembersListing CSV';
-        document.getElementById(labelId).innerText = f ? f.name : fallback;
+        const fallbacks = {
+            membershipFileDisplay: 'Tap to select AACMemberDetails CSV',
+            familyFileDisplay:     'Tap to select FamilyMembersListing CSV',
+            residentsFileDisplay:  'Tap to select DataListing-AACMembership CSV'
+        };
+        document.getElementById(labelId).innerText = f ? f.name : (fallbacks[labelId] || 'Tap to select a file');
         document.getElementById(inputId).closest('.drop-zone').classList.toggle('selected', !!f);
     }
 
@@ -1542,6 +1696,658 @@
     }
 
     // ─────────────────────────────────────────────
+    //  EVENTS & REGISTRATION
+    // ─────────────────────────────────────────────
+    // Edit this list to change the "Suitable for" checkboxes on the Events form.
+    const EVENT_SUITABLE_FOR = ['Robust seniors', 'Frail seniors', 'CFS 6-8', 'Caregivers', 'Open to all'];
+    const UNLIMITED_CAPACITY = 999;                        // must match the database (999 = unlimited)
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    let currentUserRole    = null;
+    let nricWasAutofilled  = false;   // true only while the NRIC came from a resident search result
+    let editingRegId       = null;
+    let editingEventId     = null;
+    let regSelectedEventId = null;
+    let regEventsCache     = [];
+    let regListCache       = [];
+    let residentResults    = [];
+    let eventsAdminCache   = [];
+
+    // NRIC / FIN check: format + checksum only (does not prove the person exists).
+    // Ported from samliew/singapore-nric. S/T/F/G read the check table from the start;
+    // M-series FINs read theirs from the other end (index = 10 - index).
+    function isValidNRIC(nric) {
+        const s = String(nric || '').trim().toUpperCase();
+        if (!/^[STFGM]\d{7}[A-Z]$/.test(s)) return false;
+        const prefix = s[0], digits = s.slice(1, 8), check = s[8];
+        const weights = [2, 7, 6, 5, 4, 3, 2];
+        let sum = 0;
+        for (let i = 0; i < 7; i++) sum += Number(digits[i]) * weights[i];
+        const offset = { S: 0, T: 4, F: 0, G: 4, M: 3 }[prefix];
+        const tables = { S: 'JZIHGFEDCBA', T: 'JZIHGFEDCBA', F: 'XWUTRQPNMLK', G: 'XWUTRQPNMLK', M: 'KLJNPQRTUWX' };
+        let idx = (sum + offset) % 11;
+        if (prefix === 'M') idx = 10 - idx;
+        return tables[prefix][idx] === check;
+    }
+
+    // ---- helpers ----
+    function todaySG() { return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }); }
+    function fmtEventDate(iso) {
+        if (!iso) return '';
+        const [y, m, d] = String(iso).split('-').map(Number);
+        return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+    }
+    function fmtTime(t) { return t ? String(t).slice(0, 5) : ''; }
+    function isPastEvent(ev) { return !!ev && ev.event_date < todaySG(); }
+    function eventLabel(ev) { return `${fmtEventDate(ev.event_date)}, ${fmtTime(ev.start_time)} - ${ev.description}`; }
+    function capacityText(ev) {
+        return ev.max_capacity >= UNLIMITED_CAPACITY
+            ? `${ev.registered_count} registered (unlimited)`
+            : `${ev.registered_count} / ${ev.max_capacity} registered`;
+    }
+    function membershipChip(status) {
+        const s = status || 'Not on record';
+        const cls = { joined: 'chip-joined', pending: 'chip-pending', terminated: 'chip-terminated' }[s.toLowerCase()] || 'chip-none';
+        return `<span class="chip ${cls}">${sanitise(s)}</span>`;
+    }
+    function statusChip(status) {
+        const cls = { Registered: 'chip-registered', Waitlisted: 'chip-waitlisted', Cancelled: 'chip-cancelled' }[status] || 'chip-none';
+        return `<span class="chip ${cls}">${sanitise(status)}</span>`;
+    }
+    function setSelectValue(sel, value) {
+        const v = value || '';
+        if (v && ![...sel.options].some(o => o.value === v)) {
+            const opt = document.createElement('option'); opt.value = v; opt.textContent = v; sel.appendChild(opt);
+        }
+        sel.value = v;
+    }
+    function notifyInline(elId, text, type) {
+        const el = document.getElementById(elId);
+        el.textContent = text;
+        el.className = `message ${type}`;
+        if (el.scrollIntoView) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+    function regNotify(text, type) { showMsg(text, type); notifyInline('reg-feedback', text, type); }
+    function evNotify(text, type)  { showMsg(text, type); notifyInline('ev-feedback', text, type); }
+
+    // CSV cell: quote when needed, and defuse spreadsheet formulas (=, @, or +/- that is not a phone number)
+    function csvCell(v) {
+        let s = v === null || v === undefined ? '' : String(v);
+        if (/^[=@\t\r]/.test(s) || (/^[+-]/.test(s) && !/^[+-]?[\d\s()-]+$/.test(s))) s = "'" + s;
+        return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    }
+    function downloadCSV(filename, headers, rows) {
+        const body = [headers.map(csvCell).join(','), ...rows.map(r => r.map(csvCell).join(','))].join('\n');
+        const blob = new Blob(['\uFEFF' + body], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    function initEventUI() {
+        renderSuitableCheckboxes([]);
+        const nric = document.getElementById('reg-nric');
+        if (nric) nric.addEventListener('input', () => { nricWasAutofilled = false; updateNricHint(); });
+        const dob = document.getElementById('reg-dob');
+        if (dob) { dob.addEventListener('input', updateRegAge); dob.addEventListener('change', updateRegAge); }
+        const search = document.getElementById('reg-search-input');
+        if (search) search.addEventListener('keyup', e => { if (e.key === 'Enter') searchResidentsForEvent(); });
+    }
+
+    // ───────── Registration tab ─────────
+    function updateNricHint() {
+        const show = !editingRegId && !nricWasAutofilled && document.getElementById('reg-nric').value.trim() !== '';
+        document.getElementById('reg-nric-hint').classList.toggle('hidden', !show);
+    }
+    function updateRegAge() {
+        const dob = document.getElementById('reg-dob').value;
+        document.getElementById('reg-age').value = dob ? String(calcAge(dob)) : '';
+    }
+
+    async function loadRegistrationEvents() {
+        const select = document.getElementById('reg-event-select');
+        const includePast = document.getElementById('reg-include-past').checked;
+        const previous = regSelectedEventId;
+        const { data, error } = await supabaseClient.rpc('get_active_events', { include_past: includePast });
+        if (error) {
+            select.innerHTML = '<option value="" disabled selected>-- Could not load events --</option>';
+            showMsg(error.message, 'error');
+            return;
+        }
+        regEventsCache = data || [];
+        if (regEventsCache.length === 0) {
+            select.innerHTML = '<option value="" disabled selected>-- No events available --</option>';
+            regSelectedEventId = null;
+            renderRegEventPanel();
+            return;
+        }
+        select.innerHTML = '<option value="" disabled>-- Choose an event --</option>' +
+            regEventsCache.map(ev => `<option value="${sanitise(ev.id)}">${sanitise(eventLabel(ev))}</option>`).join('');
+        if (previous && regEventsCache.some(e => e.id === previous)) {
+            select.value = previous;
+        } else {
+            regSelectedEventId = null;
+            select.selectedIndex = 0;
+        }
+        renderRegEventPanel();
+        if (regSelectedEventId) await loadRegistrations();
+    }
+
+    function onRegEventChange() {
+        const id = document.getElementById('reg-event-select').value || null;
+        if (id !== regSelectedEventId) {
+            regSelectedEventId = id;
+            resetRegistrationForm();
+            document.getElementById('reg-search-results').innerHTML = '';
+            document.getElementById('reg-search-input').value = '';
+            regListCache = [];
+            document.getElementById('reg-list').innerHTML = '';
+        }
+        renderRegEventPanel();
+        if (regSelectedEventId) loadRegistrations();
+    }
+
+    function renderRegEventPanel() {
+        const info = document.getElementById('reg-event-info');
+        const work = document.getElementById('reg-workarea');
+        const ev = regEventsCache.find(e => e.id === regSelectedEventId);
+        if (!ev) { info.classList.add('hidden'); work.classList.add('hidden'); return; }
+        const past = isPastEvent(ev);
+        const suitable = (ev.suitable_for || []).map(s => `<span class="chip chip-none">${sanitise(s)}</span>`).join('');
+        info.innerHTML =
+            `<div style="font-weight:700;">${sanitise(ev.description)}</div>` +
+            `<div class="sub">${sanitise(fmtEventDate(ev.event_date))} · ${sanitise(fmtTime(ev.start_time))}-${sanitise(fmtTime(ev.end_time))} · ${sanitise(ev.venue)}</div>` +
+            `<div class="sub">${sanitise(capacityText(ev))}${ev.waitlisted_count > 0 ? ' · ' + sanitise(String(ev.waitlisted_count)) + ' waitlisted' : ''}</div>` +
+            (suitable ? `<div style="margin-top:6px;">${suitable}</div>` : '') +
+            (ev.note ? `<div class="sub">📝 ${sanitise(ev.note)}</div>` : '') +
+            (past ? '<div class="sub" style="color:#b45309;font-weight:600;margin-top:6px;">This event has taken place - registrations are view / export only.</div>' : '');
+        info.classList.remove('hidden');
+        work.classList.remove('hidden');
+        document.getElementById('reg-entry-box').classList.toggle('hidden', past);
+    }
+
+    async function searchResidentsForEvent() {
+        const box = document.getElementById('reg-search-results');
+        const term = document.getElementById('reg-search-input').value.trim();
+        if (term.length < 2) { box.innerHTML = '<p class="sub">Enter at least 2 characters.</p>'; return; }
+        box.innerHTML = '<p class="sub">Searching...</p>';
+        const { data, error } = await supabaseClient.rpc('search_residents_for_event', { search_term: term });
+        if (error) { box.innerHTML = `<div class="message error">${sanitise(error.message)}</div>`; return; }
+        residentResults = data || [];
+        if (residentResults.length === 0) {
+            box.innerHTML = '<p class="sub">No residents found. You can type the details in manually below.</p>';
+            return;
+        }
+        box.innerHTML = residentResults.map((r, i) => `
+            <div class="reg-card resident-card" onclick="selectResident(${i})">
+                <div style="display:flex;justify-content:space-between;gap:8px;">
+                    <strong>${sanitise(r.fullnamenative)}</strong>
+                    <span>${r.membershipstatus ? membershipChip(r.membershipstatus) : ''}</span>
+                </div>
+                <div class="sub">${sanitise(r.nric)} · ${sanitise(String(calcAge(r.dateofbirth)))} yrs · ${sanitise(r.mobilephone || r.homephone || 'no phone')}</div>
+                <div class="sub">${sanitise(r.fulladdress || '')}</div>
+                <div class="sub" style="color:#8b5cf6;">Tap to fill the form</div>
+            </div>`).join('');
+    }
+    function selectResident(i) { const r = residentResults[i]; if (r) populateRegistrationForm(r); }
+
+    function populateRegistrationForm(r) {
+        setEditMode(null);
+        document.getElementById('reg-nric').value     = r.nric || '';
+        document.getElementById('reg-fullname').value = r.fullnamenative || '';
+        document.getElementById('reg-dob').value      = r.dateofbirth || '';
+        setSelectValue(document.getElementById('reg-gender'), r.gender || '');
+        document.getElementById('reg-contact').value  = r.mobilephone || r.homephone || '';
+        document.getElementById('reg-postal').value   = r.postalcode || '';
+        document.getElementById('reg-dietary').value  = 'Regular';
+        document.getElementById('reg-comments').value = '';
+        updateRegAge();
+        nricWasAutofilled = true;                       // trusted: it came from the database
+        updateNricHint();
+        const chips = (r.membershipstatus ? membershipChip(r.membershipstatus) : '') +
+                      (r.is_in_boundary === false ? '<span class="chip chip-boundary">⚠️ Outside Service Boundary</span>' : '');
+        const line = document.getElementById('reg-membership-line');
+        line.innerHTML = chips;
+        line.classList.toggle('hidden', !chips);
+        hideDuplicatePanel();
+        document.getElementById('reg-feedback').classList.add('hidden');
+        const box = document.getElementById('reg-form-box');
+        if (box.scrollIntoView) box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+
+    function setEditMode(id) {
+        editingRegId = id;
+        const banner = document.getElementById('reg-edit-banner');
+        const nric = document.getElementById('reg-nric');
+        if (id) {
+            const reg = regListCache.find(r => r.id === id);
+            banner.innerHTML = `Editing the registration for <strong>${sanitise(reg ? reg.fullname : '')}</strong> ` +
+                `<button class="secondary-btn" style="width:auto;padding:6px 12px;margin:6px 0 0;" onclick="resetRegistrationForm()">Cancel edit</button>`;
+            banner.classList.remove('hidden');
+            nric.readOnly = true;
+            document.getElementById('reg-submit-btn').textContent = 'Save changes';
+            document.getElementById('reg-form-title').textContent = 'Edit registration';
+        } else {
+            banner.classList.add('hidden');
+            nric.readOnly = false;
+            document.getElementById('reg-submit-btn').textContent = 'Register';
+            document.getElementById('reg-form-title').textContent = 'Registration details';
+        }
+        updateNricHint();
+    }
+
+    function resetRegistrationForm() {
+        ['reg-nric', 'reg-fullname', 'reg-dob', 'reg-age', 'reg-contact', 'reg-postal', 'reg-comments']
+            .forEach(id => { document.getElementById(id).value = ''; });
+        document.getElementById('reg-gender').value = '';
+        document.getElementById('reg-dietary').value = 'Regular';
+        nricWasAutofilled = false;
+        setEditMode(null);
+        const line = document.getElementById('reg-membership-line');
+        line.innerHTML = ''; line.classList.add('hidden');
+        hideDuplicatePanel();
+        document.getElementById('reg-feedback').classList.add('hidden');
+    }
+
+    function hideDuplicatePanel() {
+        const p = document.getElementById('reg-duplicate-panel');
+        p.innerHTML = ''; p.classList.add('hidden');
+    }
+    function showDuplicatePanel(regId, status, name) {
+        const p = document.getElementById('reg-duplicate-panel');
+        const safeName = sanitise(name || 'This person');
+        let html = `<div style="font-weight:700;">${safeName} is already ${sanitise(status || 'registered')} for this event.</div>`;
+        if (UUID_RE.test(regId || '')) {
+            html += `<div class="reg-actions">
+                <button style="background:#475569;" onclick="highlightRegistration('${regId}')">View</button>
+                <button style="background:#8b5cf6;" onclick="startEditRegistration('${regId}')">Update details</button>
+                <button style="background:#dc2626;" onclick="promptCancelRegistration('${regId}')">Cancel registration</button>
+            </div>`;
+        }
+        p.innerHTML = html;
+        p.classList.remove('hidden');
+        if (p.scrollIntoView) p.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+
+    async function submitRegistration() {
+        const ev = regEventsCache.find(e => e.id === regSelectedEventId);
+        if (!ev) return regNotify('Please choose an event first.', 'error');
+        if (isPastEvent(ev)) return regNotify('This event has already taken place.', 'error');
+
+        const nricField = document.getElementById('reg-nric');
+        const nric      = nricField.value.trim().toUpperCase();
+        const fullname  = document.getElementById('reg-fullname').value.trim();
+        const dob       = document.getElementById('reg-dob').value;
+
+        if (!editingRegId) {
+            if (!nric) return regNotify('NRIC is required.', 'error');          // required-field error, never the checksum error
+            // Autofilled NRICs come from the database and are trusted; typed ones must pass the checksum
+            if (!nricWasAutofilled && !isValidNRIC(nric)) {
+                return regNotify('Invalid NRIC checksum. Please verify the number.', 'error');
+            }
+        }
+        if (!fullname) return regNotify('Full name is required.', 'error');
+        if (!dob)      return regNotify('Date of birth is required.', 'error');
+        nricField.value = nric;
+
+        const common = {
+            p_fullname:           fullname,
+            p_dateofbirth:        dob,
+            p_gender:             document.getElementById('reg-gender').value || null,
+            p_contactnumber:      document.getElementById('reg-contact').value.trim() || null,
+            p_postalcode:         document.getElementById('reg-postal').value.trim() || null,
+            p_dietaryrequirement: document.getElementById('reg-dietary').value,
+            p_comments:           document.getElementById('reg-comments').value.trim() || null
+        };
+        const btn = document.getElementById('reg-submit-btn');
+        const idleLabel = btn.textContent;
+        btn.disabled = true; btn.textContent = 'Saving...';
+        try {
+            if (editingRegId) {
+                const { error } = await supabaseClient.rpc('update_event_registration', { p_reg_id: editingRegId, ...common });
+                if (error) throw error;
+                resetRegistrationForm();
+                regNotify('Registration updated.', 'success');
+            } else {
+                const { data, error } = await supabaseClient.rpc('register_for_event', { p_event_id: ev.id, p_nric: nric, ...common });
+                if (error) {
+                    if (error.message === 'DUPLICATE_REGISTRATION') { showDuplicatePanel(error.details, error.hint, fullname); return; }
+                    if (error.message === 'EVENT_ENDED')     throw new Error('This event has already taken place.');
+                    if (error.message === 'EVENT_NOT_FOUND') throw new Error('This event is no longer available. Please refresh the list.');
+                    throw error;
+                }
+                resetRegistrationForm();
+                const extra = [];
+                if (data && data.membershipstatus) extra.push(data.membershipstatus);
+                if (data && data.outside_boundary) extra.push('outside the service boundary');
+                const suffix = extra.length ? ` (${extra.join(', ')})` : '';
+                regNotify(data && data.status === 'Waitlisted'
+                    ? `Added to the waitlist - the event is full or others are already waiting${suffix}.`
+                    : `Registered${suffix}.`, 'success');
+            }
+            document.getElementById('reg-search-results').innerHTML = '';
+            await loadRegistrationEvents();
+        } catch (err) {
+            console.error('Registration failed:', err);
+            regNotify(err.message || 'Something went wrong. Please try again.', 'error');
+        } finally {
+            btn.disabled = false;
+            if (btn.textContent === 'Saving...') btn.textContent = editingRegId ? 'Save changes' : 'Register';
+        }
+    }
+
+    async function loadRegistrations() {
+        const eventId = regSelectedEventId;
+        const listEl = document.getElementById('reg-list');
+        if (!eventId) return;
+        const { data, error } = await supabaseClient.rpc('get_event_registrations', { p_event_id: eventId });
+        if (eventId !== regSelectedEventId) return;                    // the event changed while loading
+        if (error) { listEl.innerHTML = `<div class="message error">${sanitise(error.message)}</div>`; return; }
+        regListCache = data || [];
+        renderRegistrations();
+    }
+
+    function renderRegistrations() {
+        const ev = regEventsCache.find(e => e.id === regSelectedEventId);
+        const readOnly = isPastEvent(ev);
+        const count = s => regListCache.filter(r => r.status === s).length;
+        const cap = ev && ev.max_capacity < UNLIMITED_CAPACITY ? ` / ${ev.max_capacity}` : '';
+        document.getElementById('reg-summary').textContent =
+            regListCache.length === 0 ? 'No registrations yet.'
+            : `Registered ${count('Registered')}${cap} · Waitlisted ${count('Waitlisted')} · Cancelled ${count('Cancelled')}`;
+        document.getElementById('reg-export-btn').classList.toggle('hidden', regListCache.length === 0);
+        document.getElementById('reg-list').innerHTML = regListCache.map(r => {
+            const cancelled = r.status === 'Cancelled';
+            const actions = (readOnly || !UUID_RE.test(r.id)) ? '' : `<div class="reg-actions">
+                ${cancelled ? '' : `<button style="background:#8b5cf6;" onclick="startEditRegistration('${r.id}')">Edit</button>
+                <button style="background:#dc2626;" onclick="promptCancelRegistration('${r.id}')">Cancel</button>`}
+                ${r.status === 'Waitlisted' && currentUserRole === 'admin' ? `<button style="background:#16a34a;" onclick="promoteRegistration('${r.id}')">Promote</button>` : ''}
+            </div>`;
+            return `<div class="reg-card" id="reg-row-${sanitise(r.id)}">
+                <div style="display:flex;justify-content:space-between;gap:8px;">
+                    <div><strong>${sanitise(r.fullname)}</strong>
+                        <div class="sub">${sanitise(r.nric)} · ${sanitise(String(calcAge(r.dateofbirth)))} yrs${r.gender ? ' · ' + sanitise(r.gender) : ''}</div></div>
+                    <div style="text-align:right;">${statusChip(r.status)}${r.waitlist_position ? `<div class="sub">#${sanitise(String(r.waitlist_position))} in queue</div>` : ''}</div>
+                </div>
+                <div style="margin-top:6px;">${membershipChip(r.membershipstatus)}${r.outside_boundary ? '<span class="chip chip-boundary">⚠️ Outside Service Boundary</span>' : ''}</div>
+                <div class="sub">${r.contactnumber ? '📞 ' + sanitise(r.contactnumber) + ' · ' : ''}🍽 ${sanitise(r.dietaryrequirement)}${r.postalcode ? ' · ' + sanitise(r.postalcode) : ''}</div>
+                ${r.comments ? `<div class="sub">💬 ${sanitise(r.comments)}</div>` : ''}
+                ${cancelled && r.cancellation_reason ? `<div class="sub">Reason: ${sanitise(r.cancellation_reason)}</div>` : ''}
+                ${actions}
+            </div>`;
+        }).join('');
+    }
+
+    async function startEditRegistration(id) {
+        let reg = regListCache.find(r => r.id === id);
+        if (!reg) { await loadRegistrations(); reg = regListCache.find(r => r.id === id); }
+        if (!reg) return regNotify('Could not find that registration. Please refresh.', 'error');
+        document.getElementById('reg-nric').value     = reg.nric || '';
+        document.getElementById('reg-fullname').value = reg.fullname || '';
+        document.getElementById('reg-dob').value      = reg.dateofbirth || '';
+        setSelectValue(document.getElementById('reg-gender'), reg.gender || '');
+        document.getElementById('reg-contact').value  = reg.contactnumber || '';
+        document.getElementById('reg-postal').value   = reg.postalcode || '';
+        setSelectValue(document.getElementById('reg-dietary'), reg.dietaryrequirement || 'Regular');
+        document.getElementById('reg-comments').value = reg.comments || '';
+        updateRegAge();
+        nricWasAutofilled = false;
+        setEditMode(id);
+        const line = document.getElementById('reg-membership-line');
+        line.innerHTML = membershipChip(reg.membershipstatus) + (reg.outside_boundary ? '<span class="chip chip-boundary">⚠️ Outside Service Boundary</span>' : '');
+        line.classList.remove('hidden');
+        hideDuplicatePanel();
+        document.getElementById('reg-feedback').classList.add('hidden');
+        const box = document.getElementById('reg-form-box');
+        if (box.scrollIntoView) box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+
+    function highlightRegistration(id) {
+        const el = document.getElementById('reg-row-' + id);
+        if (!el) return;
+        el.classList.add('highlight');
+        if (el.scrollIntoView) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        setTimeout(() => el.classList.remove('highlight'), 3000);
+    }
+
+    async function promptCancelRegistration(id) {
+        const reason = window.prompt('Reason for cancellation (required):');
+        if (reason === null) return;
+        if (!reason.trim()) return regNotify('A cancellation reason is required.', 'error');
+        const { error } = await supabaseClient.rpc('cancel_event_registration', { p_reg_id: id, p_reason: reason.trim() });
+        if (error) return regNotify(error.message, 'error');
+        if (editingRegId === id) resetRegistrationForm();
+        hideDuplicatePanel();
+        regNotify('Registration cancelled.', 'success');
+        await loadRegistrationEvents();
+    }
+
+    async function promoteRegistration(id) {
+        if (!window.confirm('Promote this person from the waitlist to Registered?')) return;
+        const { data, error } = await supabaseClient.rpc('promote_waitlisted_member', { p_reg_id: id });
+        if (error) return regNotify(error.message, 'error');
+        regNotify(data && data.over_capacity
+            ? 'Promoted to Registered. Note: the event is now over its capacity.'
+            : 'Promoted to Registered.', 'success');
+        await loadRegistrationEvents();
+    }
+
+    async function exportEventRegistrationsCSV() {
+        if (!regSelectedEventId) return;
+        const { data, error } = await supabaseClient.rpc('export_event_registrations', { p_event_id: regSelectedEventId });
+        if (error) return showMsg(error.message, 'error');
+        if (!data || data.length === 0) return showMsg('Nothing to export yet.', 'error');
+        const headers = ['Event', 'Event date', 'NRIC', 'Name', 'Age on event date', 'Gender', 'Contact number', 'Postal code',
+                         'Dietary requirement', 'Comments', 'Status', 'Cancellation reason', 'Outside service boundary',
+                         'Membership status', 'Registered at'];
+        const rows = data.map(r => [r.event_description, r.event_date, r.nric, r.fullname, r.age_on_event_date, r.gender,
+            r.contactnumber, r.postalcode, r.dietaryrequirement, r.comments, r.status, r.cancellation_reason,
+            r.outside_boundary ? 'Yes' : 'No', r.membership_status, r.registered_at]);
+        const safe = String(data[0].event_description || 'event').replace(/[^a-zA-Z0-9\s-]/g, '').trim().replace(/\s+/g, '_');
+        downloadCSV(`Registrations_${safe}_${data[0].event_date}.csv`, headers, rows);
+    }
+
+    // ───────── Events tab (admin) ─────────
+    function renderSuitableCheckboxes(selected) {
+        const box = document.getElementById('ev-suitable-box');
+        if (!box) return;
+        const options = [...EVENT_SUITABLE_FOR, ...selected.filter(s => !EVENT_SUITABLE_FOR.includes(s))];
+        box.innerHTML = options.map(o =>
+            `<label style="display:flex;align-items:center;gap:8px;margin:4px 0;text-transform:none;letter-spacing:0;font-size:0.95rem;font-weight:400;color:#1c1c1c;">` +
+            `<input type="checkbox" class="ev-suitable-cb" value="${sanitise(o)}" style="width:auto;margin:0;"${selected.includes(o) ? ' checked' : ''}> ${sanitise(o)}</label>`).join('');
+    }
+    function toggleCapacityInput() {
+        document.getElementById('ev-capacity').classList.toggle('hidden', document.getElementById('ev-unlimited').checked);
+    }
+    function resetEventForm() {
+        ['ev-description', 'ev-date', 'ev-start', 'ev-end', 'ev-venue', 'ev-note', 'ev-capacity']
+            .forEach(id => { document.getElementById(id).value = ''; });
+        document.getElementById('ev-unlimited').checked = true;
+        toggleCapacityInput();
+        renderSuitableCheckboxes([]);
+        editingEventId = null;
+        document.getElementById('ev-form-title').textContent = 'New event';
+        document.getElementById('ev-save-btn').textContent = 'Save event';
+        document.getElementById('ev-cancel-edit-btn').classList.add('hidden');
+        document.getElementById('ev-feedback').classList.add('hidden');
+    }
+
+    async function saveEvent() {
+        const description = document.getElementById('ev-description').value.trim();
+        const date  = document.getElementById('ev-date').value;
+        const start = document.getElementById('ev-start').value;
+        const end   = document.getElementById('ev-end').value;
+        const venue = document.getElementById('ev-venue').value.trim();
+        if (!description) return evNotify('Description is required.', 'error');
+        if (!date)  return evNotify('Date is required.', 'error');
+        if (!start || !end) return evNotify('Start and end times are required.', 'error');
+        if (end <= start)   return evNotify('End time must be after the start time.', 'error');
+        if (!venue) return evNotify('Venue is required.', 'error');
+        let capacity = UNLIMITED_CAPACITY;
+        if (!document.getElementById('ev-unlimited').checked) {
+            capacity = parseInt(document.getElementById('ev-capacity').value, 10);
+            if (!Number.isInteger(capacity) || capacity < 1 || capacity >= UNLIMITED_CAPACITY) {
+                return evNotify('Capacity must be a whole number from 1 to 998 (or tick Unlimited).', 'error');
+            }
+        }
+        const suitable = [...document.querySelectorAll('.ev-suitable-cb')].filter(cb => cb.checked).map(cb => cb.value);
+        const btn = document.getElementById('ev-save-btn');
+        btn.disabled = true;
+        try {
+            const { error } = await supabaseClient.rpc('upsert_event', {
+                p_id: editingEventId, p_description: description, p_event_date: date, p_start_time: start, p_end_time: end,
+                p_venue: venue, p_suitable_for: suitable.length ? suitable : null,
+                p_note: document.getElementById('ev-note').value.trim() || null, p_max_capacity: capacity
+            });
+            if (error) throw error;
+            const wasEdit = !!editingEventId;
+            resetEventForm();
+            evNotify(wasEdit ? 'Event updated.' : 'Event created.', 'success');
+            await loadEventsAdmin();
+        } catch (err) {
+            console.error('Save event failed:', err);
+            evNotify(err.message || 'Could not save the event.', 'error');
+        } finally { btn.disabled = false; }
+    }
+
+    async function loadEventsAdmin() {
+        const listEl = document.getElementById('events-list');
+        const { data, error } = await supabaseClient.rpc('get_active_events', { include_past: document.getElementById('ev-show-past').checked });
+        if (error) { listEl.innerHTML = `<div class="message error">${sanitise(error.message)}</div>`; return; }
+        eventsAdminCache = data || [];
+        if (eventsAdminCache.length === 0) { listEl.innerHTML = '<div class="empty-state">No events yet.</div>'; return; }
+        listEl.innerHTML = eventsAdminCache.map(ev => {
+            const chips = (ev.suitable_for || []).map(s => `<span class="chip chip-none">${sanitise(s)}</span>`).join('');
+            return `<div class="reg-card">
+                <strong>${sanitise(ev.description)}</strong>${isPastEvent(ev) ? ' <span class="chip chip-cancelled">Past</span>' : ''}
+                <div class="sub">${sanitise(fmtEventDate(ev.event_date))} · ${sanitise(fmtTime(ev.start_time))}-${sanitise(fmtTime(ev.end_time))} · ${sanitise(ev.venue)}</div>
+                <div class="sub">${sanitise(capacityText(ev))}${ev.waitlisted_count > 0 ? ' · ' + sanitise(String(ev.waitlisted_count)) + ' waitlisted' : ''}</div>
+                ${chips ? `<div style="margin-top:6px;">${chips}</div>` : ''}
+                ${ev.note ? `<div class="sub">📝 ${sanitise(ev.note)}</div>` : ''}
+                ${UUID_RE.test(ev.id) ? `<div class="reg-actions">
+                    <button style="background:#8b5cf6;" onclick="editEvent('${ev.id}')">Edit</button>
+                    <button style="background:#dc2626;" onclick="deleteEvent('${ev.id}')">Remove</button></div>` : ''}
+            </div>`;
+        }).join('');
+    }
+
+    function editEvent(id) {
+        const ev = eventsAdminCache.find(e => e.id === id);
+        if (!ev) return;
+        editingEventId = id;
+        document.getElementById('ev-description').value = ev.description || '';
+        document.getElementById('ev-date').value  = ev.event_date || '';
+        document.getElementById('ev-start').value = fmtTime(ev.start_time);
+        document.getElementById('ev-end').value   = fmtTime(ev.end_time);
+        document.getElementById('ev-venue').value = ev.venue || '';
+        document.getElementById('ev-note').value  = ev.note || '';
+        const unlimited = ev.max_capacity >= UNLIMITED_CAPACITY;
+        document.getElementById('ev-unlimited').checked = unlimited;
+        document.getElementById('ev-capacity').value = unlimited ? '' : String(ev.max_capacity);
+        toggleCapacityInput();
+        renderSuitableCheckboxes(ev.suitable_for || []);
+        document.getElementById('ev-form-title').textContent = 'Edit event';
+        document.getElementById('ev-save-btn').textContent = 'Save changes';
+        document.getElementById('ev-cancel-edit-btn').classList.remove('hidden');
+        document.getElementById('ev-feedback').classList.add('hidden');
+        const title = document.getElementById('ev-form-title');
+        if (title.scrollIntoView) title.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+
+    async function deleteEvent(id) {
+        if (!window.confirm('Remove this event? Existing registrations are kept, but the event will no longer be listed.')) return;
+        const { error } = await supabaseClient.rpc('soft_delete_event', { p_event_id: id });
+        if (error) return evNotify(error.message, 'error');
+        if (editingEventId === id) resetEventForm();
+        evNotify('Event removed.', 'success');
+        await loadEventsAdmin();
+    }
+
+    // ───────── Residents import (Members tab, admin) ─────────
+    function parseDobToISO(v) {
+        const s = String(v || '').trim();
+        let y, m, d, match;
+        if ((match = s.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/))) {
+            const idx = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'].indexOf(match[2].toLowerCase());
+            if (idx < 0) return '';
+            d = +match[1]; m = idx + 1; y = +match[3];
+        } else if ((match = s.match(/^(\d{4})-(\d{2})-(\d{2})$/))) {
+            y = +match[1]; m = +match[2]; d = +match[3];
+        } else { return ''; }
+        const dt = new Date(Date.UTC(y, m - 1, d));
+        if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return '';
+        return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+
+    function parseResidentsCSV(file) {
+        return new Promise((resolve, reject) => {
+            Papa.parse(file, {
+                header: true, skipEmptyLines: true,
+                transformHeader: h => String(h).replace(/^\uFEFF/, '').trim(),
+                complete(results) {
+                    const found = (results.meta && results.meta.fields) ? results.meta.fields : [];
+                    const missing = ['MembershipStatus', 'NRIC', 'NativeName', 'DOB'].filter(c => !found.includes(c));
+                    if (missing.length) {
+                        reject(new Error(`This CSV is missing required columns: ${missing.join(', ')}. Found: [${found.join(', ') || 'none'}]. Is this the correct file?`));
+                        return;
+                    }
+                    const rows = []; let noNric = 0, noName = 0, badDob = 0;
+                    results.data.forEach(r => {
+                        const g = k => (r[k] !== undefined && r[k] !== null) ? String(r[k]).trim() : '';
+                        const nric = g('NRIC').toUpperCase();
+                        if (!nric) { noNric++; return; }
+                        if (!g('NativeName')) { noName++; return; }
+                        const dob = parseDobToISO(g('DOB'));
+                        if (!dob) { badDob++; return; }
+                        rows.push({
+                            membershipstatus: g('MembershipStatus'), nric, fullnamenative: g('NativeName'), dateofbirth: dob,
+                            gender: g('Gender'), homephone: g('HomePhone'), mobilephone: g('MobilePhone'),
+                            postalcode: g('PersonAddressPostalCode'), blockno: g('PersonAddressBlockNo'),
+                            storeyunit: g('PersonAddressStoreyUnit'), streetname: g('PersonAddressStreetName')
+                        });
+                    });
+                    resolve({ rows, totalRows: results.data.length, skipped: { noNric, noName, badDob } });
+                },
+                error: reject
+            });
+        });
+    }
+
+    async function runResidentsImport() {
+        const file = document.getElementById('csvResidents').files[0];
+        if (!file) return showMsg('Please select the residents CSV first.', 'error');
+        const btn = document.getElementById('residentsImportBtn');
+        btn.disabled = true;
+        try {
+            const parsed = await parseResidentsCSV(file);
+            if (parsed.rows.length === 0) throw new Error('No usable rows found (each row needs an NRIC, a name and a valid date of birth). Nothing was changed.');
+            let current = null;
+            try {
+                const { count } = await supabaseClient.from('residents').select('*', { count: 'exact', head: true });
+                if (typeof count === 'number') current = count;
+            } catch (e) { /* the count is only for the confirmation text */ }
+            const sk = parsed.skipped, skippedTotal = sk.noNric + sk.noName + sk.badDob;
+            let msg = '⚠️ Importing the Residents CSV will wipe the existing residents table and replace it with the contents of the new file. ' +
+                      'Registration records for past events are unaffected. Continue?' +
+                      `\n\nCurrent residents: ${current === null ? 'unknown' : current}` +
+                      `\nRows in new file: ${parsed.rows.length}` +
+                      (skippedTotal ? `\nRows skipped (missing NRIC, name or valid date of birth): ${skippedTotal}` : '');
+            if (current && parsed.rows.length < current * 0.5) msg += '\n\n⚠️ The new file has far fewer rows than the current list. Is it the right file?';
+            if (!window.confirm(msg)) { showMsg('Import cancelled. Nothing was changed.', 'success'); return; }
+            const { data, error } = await supabaseClient.rpc('import_residents', { import_data: parsed.rows });
+            if (error) throw error;
+            showMsg(typeof data === 'string' ? data : 'Residents list replaced.', 'success');
+            document.getElementById('csvResidents').value = '';
+            updateDropLabel('csvResidents', 'residentsFileDisplay');
+        } catch (err) {
+            console.error('Residents import failed:', err);
+            showMsg(err.message || 'Import failed. Nothing was changed.', 'error');
+        } finally { btn.disabled = false; }
+    }
+
+    // ─────────────────────────────────────────────
     //  MONTH INPUT COMPATIBILITY (Firefox desktop has no <input type="month">)
     // ─────────────────────────────────────────────
     function supportsMonthInput() {
@@ -1649,7 +2455,7 @@
         document.getElementById('title').classList.add('hidden');
         document.getElementById('main-app').classList.remove('hidden');
         switchTab('search-section');
-        loadSyncMetadata(); // non-blocking — runs in background
+        loadSyncMetadata(); // non-blocking - runs in background
 
         try {
             const { data: profile, error: profileError } = await supabaseClient
@@ -1657,12 +2463,21 @@
 
             if (profileError) {
                 console.error("Could not load user profile:", profileError.message);
-            } else if (profile?.role === 'admin') {
-                document.getElementById('activity-tab-btn').classList.remove('hidden');
-                document.getElementById('admin-tab-btn').classList.remove('hidden');
-                document.getElementById('etl-tab-btn').classList.remove('hidden');
-                await loadReports();
-                await loadActivityNames();
+            } else {
+                currentUserRole = profile?.role || null;
+                // Staff and admins can register people for events
+                if (currentUserRole === 'admin' || currentUserRole === 'staff') {
+                    document.getElementById('register-tab-btn').classList.remove('hidden');
+                }
+                // Admin-only tabs
+                if (currentUserRole === 'admin') {
+                    document.getElementById('activity-tab-btn').classList.remove('hidden');
+                    document.getElementById('admin-tab-btn').classList.remove('hidden');
+                    document.getElementById('etl-tab-btn').classList.remove('hidden');
+                    document.getElementById('events-tab-btn').classList.remove('hidden');
+                    await loadReports();
+                    await loadActivityNames();
+                }
             }
         } catch (err) {
             console.error("Error during post-login initialization:", err);
@@ -1672,6 +2487,7 @@
 
     window.onload = async () => {
         initMonthInputs();
+        initEventUI();
         resetIdleTimer(); // from auth-config.js
 
         // FIX #9: handle token expiry and forced sign-out
