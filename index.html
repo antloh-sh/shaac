@@ -1747,7 +1747,7 @@
     }
     function membershipChip(status) {
         const s = status || 'Not on record';
-        const cls = { joined: 'chip-joined', pending: 'chip-pending', terminated: 'chip-terminated' }[s.toLowerCase()] || 'chip-none';
+        const cls = { joined: 'chip-joined', pending: 'chip-pending', terminated: 'chip-terminated', withdrawn: 'chip-terminated' }[s.toLowerCase()] || 'chip-none';
         return `<span class="chip ${cls}">${sanitise(s)}</span>`;
     }
     function statusChip(status) {
@@ -2288,27 +2288,35 @@
                 transformHeader: h => String(h).replace(/^\uFEFF/, '').trim(),
                 complete(results) {
                     const found = (results.meta && results.meta.fields) ? results.meta.fields : [];
-                    const missing = ['MembershipStatus', 'NRIC', 'NativeName', 'DOB'].filter(c => !found.includes(c));
+                    const missing = ['MembershipStatus', 'NRIC', 'DOB'].filter(c => !found.includes(c));
+                    // The English name is in FullName. NativeName (native-script name) is usually blank, so it is only a fallback.
+                    if (!found.includes('FullName') && !found.includes('NativeName')) missing.push('FullName');
                     if (missing.length) {
                         reject(new Error(`This CSV is missing required columns: ${missing.join(', ')}. Found: [${found.join(', ') || 'none'}]. Is this the correct file?`));
                         return;
                     }
-                    const rows = []; let noNric = 0, noName = 0, badDob = 0;
+                    // The export has one row per next-of-kin line, so a person can appear more than once.
+                    // Keep one entry per NRIC; the last row wins (the database applies the same rule).
+                    const people = new Map();
+                    let validRows = 0, noNric = 0, noName = 0, badDob = 0;
                     results.data.forEach(r => {
                         const g = k => (r[k] !== undefined && r[k] !== null) ? String(r[k]).trim() : '';
                         const nric = g('NRIC').toUpperCase();
                         if (!nric) { noNric++; return; }
-                        if (!g('NativeName')) { noName++; return; }
+                        const name = g('FullName') || g('NativeName');
+                        if (!name) { noName++; return; }
                         const dob = parseDobToISO(g('DOB'));
                         if (!dob) { badDob++; return; }
-                        rows.push({
-                            membershipstatus: g('MembershipStatus'), nric, fullnamenative: g('NativeName'), dateofbirth: dob,
+                        validRows++;
+                        people.set(nric, {
+                            membershipstatus: g('MembershipStatus'), nric, fullnamenative: name, dateofbirth: dob,
                             gender: g('Gender'), homephone: g('HomePhone'), mobilephone: g('MobilePhone'),
                             postalcode: g('PersonAddressPostalCode'), blockno: g('PersonAddressBlockNo'),
                             storeyunit: g('PersonAddressStoreyUnit'), streetname: g('PersonAddressStreetName')
                         });
                     });
-                    resolve({ rows, totalRows: results.data.length, skipped: { noNric, noName, badDob } });
+                    const rows = [...people.values()];
+                    resolve({ rows, totalRows: results.data.length, merged: validRows - rows.length, skipped: { noNric, noName, badDob } });
                 },
                 error: reject
             });
@@ -2332,8 +2340,10 @@
             let msg = '⚠️ Importing the Residents CSV will wipe the existing residents table and replace it with the contents of the new file. ' +
                       'Registration records for past events are unaffected. Continue?' +
                       `\n\nCurrent residents: ${current === null ? 'unknown' : current}` +
-                      `\nRows in new file: ${parsed.rows.length}` +
-                      (skippedTotal ? `\nRows skipped (missing NRIC, name or valid date of birth): ${skippedTotal}` : '');
+                      `\nRows in file: ${parsed.totalRows}` +
+                      (parsed.merged ? `\nRepeated rows merged (same NRIC): ${parsed.merged}` : '') +
+                      (skippedTotal ? `\nRows skipped (missing NRIC, name or valid date of birth): ${skippedTotal}` : '') +
+                      `\nResidents to import: ${parsed.rows.length}`;
             if (current && parsed.rows.length < current * 0.5) msg += '\n\n⚠️ The new file has far fewer rows than the current list. Is it the right file?';
             if (!window.confirm(msg)) { showMsg('Import cancelled. Nothing was changed.', 'success'); return; }
             const { data, error } = await supabaseClient.rpc('import_residents', { import_data: parsed.rows });
