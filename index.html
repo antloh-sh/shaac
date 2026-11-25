@@ -1884,7 +1884,7 @@
             <div class="reg-card resident-card" onclick="selectResident(${i})">
                 <div style="display:flex;justify-content:space-between;gap:8px;">
                     <strong>${sanitise(r.fullnamenative)}</strong>
-                    <span>${r.membershipstatus ? membershipChip(r.membershipstatus) : ''}</span>
+                    <span>${r.membershipstatus ? membershipChip(r.membershipstatus) : ''}${r.is_in_boundary === false ? '<span class="chip chip-boundary">⚠️ Outside Service Boundary</span>' : ''}</span>
                 </div>
                 <div class="sub">${sanitise(r.nric)} · ${sanitise(String(calcAge(r.dateofbirth)))} yrs · ${sanitise(r.mobilephone || r.homephone || 'no phone')}</div>
                 <div class="sub">${sanitise(r.fulladdress || '')}</div>
@@ -2312,11 +2312,13 @@
                             membershipstatus: g('MembershipStatus'), nric, fullnamenative: name, dateofbirth: dob,
                             gender: g('Gender'), homephone: g('HomePhone'), mobilephone: g('MobilePhone'),
                             postalcode: g('PersonAddressPostalCode'), blockno: g('PersonAddressBlockNo'),
-                            storeyunit: g('PersonAddressStoreyUnit'), streetname: g('PersonAddressStreetName')
+                            storeyunit: g('PersonAddressStoreyUnit'), streetname: g('PersonAddressStreetName'),
+                            resideswithinserviceboundary: g('ResidesWithinServiceBoundary')      // Yes / No / blank
                         });
                     });
                     const rows = [...people.values()];
-                    resolve({ rows, totalRows: results.data.length, merged: validRows - rows.length, skipped: { noNric, noName, badDob } });
+                    const outside = rows.filter(r => /^(no|n|false)$/i.test(r.resideswithinserviceboundary)).length;
+                    resolve({ rows, totalRows: results.data.length, merged: validRows - rows.length, outside, skipped: { noNric, noName, badDob } });
                 },
                 error: reject
             });
@@ -2343,7 +2345,8 @@
                       `\nRows in file: ${parsed.totalRows}` +
                       (parsed.merged ? `\nRepeated rows merged (same NRIC): ${parsed.merged}` : '') +
                       (skippedTotal ? `\nRows skipped (missing NRIC, name or valid date of birth): ${skippedTotal}` : '') +
-                      `\nResidents to import: ${parsed.rows.length}`;
+                      `\nResidents to import: ${parsed.rows.length}` +
+                      (parsed.outside ? `\nOf these, marked outside the service boundary: ${parsed.outside}` : '');
             if (current && parsed.rows.length < current * 0.5) msg += '\n\n⚠️ The new file has far fewer rows than the current list. Is it the right file?';
             if (!window.confirm(msg)) { showMsg('Import cancelled. Nothing was changed.', 'success'); return; }
             const { data, error } = await supabaseClient.rpc('import_residents', { import_data: parsed.rows });
